@@ -1,6 +1,9 @@
-Basicaly idea get from https://github.com/giulbia/baby_cry_detection
-main kernel got from kaggle competition https://www.kaggle.com/anmour/svm-using-mfcc-features
+Basicaly idea was got from https://github.com/giulbia/baby_cry_detection
+
+Main kernel got from kaggle competition https://www.kaggle.com/anmour/svm-using-mfcc-features
+
 code for Notebook https://www.kaggle.com/lesibius/data-augmentation-adding-signals
+
 
 python 3.7 from conda package https://realpython.com/python-windows-machine-learning-setup/
 
