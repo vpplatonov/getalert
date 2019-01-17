@@ -37,7 +37,7 @@ Feature names breathing, brushing_teeth, can_opening, cat, clapping, clock_alarm
 Class nums 30
 ```
 
-### Train model & fins best param & final train
+### Train model & find best param & final train
 
 ```bash
 python train.py
