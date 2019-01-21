@@ -54,7 +54,9 @@ def main():
                             PATH_SUFFIX_SAVE
                         ))
     parser.add_argument('--log_path',
-                        default='{}/../../ESC-50-master/'.format(os.path.dirname(os.path.abspath(__file__))))
+                        default='{}/../../ESC-50-master/'.format(
+                            os.path.dirname(os.path.abspath(__file__))
+                        ))
 
     # Arguments
     args = parser.parse_args()

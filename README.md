@@ -33,7 +33,9 @@ output
 ```bash
 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████| 1200/1200 [03:36<00:00,  5.26it/s]
 done loading train mfcc
-Feature names breathing, brushing_teeth, can_opening, cat, clapping, clock_alarm, clock_tick, coughing, cow, crow, crying_baby, dog, door_wood_creaks, door_wood_knock, drinking_sipping, footsteps, frog, glass_breaking, hen, insects, keyboard_typing, laughing, mouse_click, pig, rooster, sheep, sneezing, snoring, vacuum_cleaner, washing_machine
+Feature names breathing, brushing_teeth, can_opening, cat, clapping, clock_alarm, clock_tick, coughing, cow, crow, crying_baby, dog, door_wood_creaks, 
+door_wood_knock, drinking_sipping, footsteps, frog, glass_breaking, hen, insects, keyboard_typing, laughing, mouse_click, pig, rooster, sheep, sneezing, 
+snoring, vacuum_cleaner, washing_machine
 Class nums 30
 ```
 

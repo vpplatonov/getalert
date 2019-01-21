@@ -16,7 +16,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
 from sklearn.svm import SVC
-from model.data_set_load import LNAME_COLUMN, NUM_PCA, convert_to_labels
+from model.data_set_load import (
+    LNAME_COLUMN,
+    NUM_PCA,
+    convert_to_labels
+)
 tqdm.pandas()
 
 PATH_SUFFIX_LOAD = '../'

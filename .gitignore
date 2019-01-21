@@ -15,3 +15,5 @@ ENV/
 docs/_build/
 
 .idea/*
+.vs/*
+.vscode/*
