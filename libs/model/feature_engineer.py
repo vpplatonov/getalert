@@ -6,13 +6,14 @@ from scipy.stats import skew
 
 import librosa
 
-SAMPLE_RATE = 44100
+SAMPLE_RATE = 16000
 NUM_MFCC = 30
 FRAME = 512
 
 
 def get_mfcc_data(name, path):
-    data, _ = librosa.core.load(path + name, sr=SAMPLE_RATE)
+    data, _ = librosa.core.load(path + name,
+                                sr=SAMPLE_RATE)
     assert _ == SAMPLE_RATE
 
     return data

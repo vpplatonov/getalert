@@ -74,7 +74,8 @@ def audio_load(load_path_data, file_name):
     # Read and Resample the audio
     data, _ = librosa.core.load(os.path.join(load_path_data, file_name),
                                 sr=SAMPLE_RATE,
-                                res_type='kaiser_fast')
+                                # res_type='kaiser_fast'
+                                )
 
     input_length = SAMPLE_RATE * SOUND_DURATION
 
@@ -134,6 +135,7 @@ def audio_prediction():
     play_list_processed = scaler.transform(play_list_processed)
     play_list_processed = pca.transform(play_list_processed)
     predictions = play_list_predict(model, i2c, play_list_processed)
+    # print(predictions)
 
     # Voting strategy - must be changed to first success
     #     Full - all category the same in first place

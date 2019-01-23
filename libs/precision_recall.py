@@ -19,7 +19,9 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--load_path',
-                        default='{}/../../donateacry-corpus-master'.format(os.path.dirname(os.path.abspath(__file__))))
+                        # default='{}/../../baby_cry_detection/data'.format(os.path.dirname(os.path.abspath(__file__)))
+                        default='{}/../../donateacry-corpus-master'.format(os.path.dirname(os.path.abspath(__file__)))
+                        )
 
     # Arguments
     args = parser.parse_args()
@@ -30,12 +32,15 @@ def main():
     # list load_path sub-folders
     regex = re.compile(r'^donateacry.+')
     directory_list = [i for i in os.listdir(load_path) if regex.search(i)]
+    # directory_list = [i for i in os.listdir(load_path)]
 
     # initialise empty array for labels
-    y = []
+    # y = []
 
     # iteration on sub-folders
     for directory in directory_list:
+        # initialise empty array for labels
+        y = []
 
         file_list = os.listdir(os.path.join(load_path, directory))
 
@@ -66,10 +71,11 @@ def main():
             y.append((audio_file, pred))
             # print((audio_file, pred, predictions))
 
-    y_recall = [file for file, i in y if i == '1']
-    recall = len(y_recall) / len(y)
+        y_recall = [file for file, i in y if i == '1']
+        recall = len(y_recall) / len(y)
 
-    print(recall)
+        print(directory)
+        print(recall)
 
 
 if __name__ == '__main__':
