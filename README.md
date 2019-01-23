@@ -75,3 +75,10 @@ python prediction.py --file_name signal_9s.wav
 ```
 
 see /output/prediction/prediction.txt
+
+### Check recall on https://github.com/gveres/donateacry-corpus
+
+```bash
+python precision_recall.py
+0.14450354609929078
+```
