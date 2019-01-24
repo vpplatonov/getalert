@@ -8,8 +8,12 @@ import re
 import timeit
 import numpy as np
 
+import shutil
+
 from predict.audio_predict import get_file_name, model_init, audio_load, play_list_predict
 from predict.strategy import predict_category
+
+DESTINATION = 'predicted'
 
 
 def main():
@@ -30,12 +34,15 @@ def main():
     # READ FILES IN SUB-FOLDERS of load_path and FEATURE ENGINEERING
 
     # list load_path sub-folders
-    regex = re.compile(r'^donateacry.+')
+    regex = re.compile(r'^donateacry-ios.+')
     directory_list = [i for i in os.listdir(load_path) if regex.search(i)]
     # directory_list = [i for i in os.listdir(load_path)]
 
     # initialise empty array for labels
     # y = []
+
+    dest = os.path.join(os.path.dirname(os.path.abspath(__file__)), DESTINATION)
+    # print(dest)
 
     # iteration on sub-folders
     for directory in directory_list:
@@ -65,11 +72,13 @@ def main():
             #     Panic - even if selected category present in second place
             pred = predict_category(predictions,
                                     category='crying_baby',
-                                    strategy='Panic')
+                                    strategy='Half')
 
             # X = np.concatenate((X, avg_features), axis=0)
             y.append((audio_file, pred))
-            # print((audio_file, pred, predictions))
+            # if pred == '1':
+            #     print((audio_file, pred))
+            #     shutil.copy(os.path.join(load_path, directory, audio_file), dest)
 
         y_recall = [file for file, i in y if i == '1']
         recall = len(y_recall) / len(y)
