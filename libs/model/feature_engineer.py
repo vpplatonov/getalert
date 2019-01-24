@@ -6,9 +6,25 @@ from scipy.stats import skew
 
 import librosa
 
+PATH_SUFFIX_LOAD = '../'
+# PATH_SUFFIX_LOAD = '../ESC-50-master/'
+# PATH_SUFFIX_SAVE = '../ESC-50-master/'
+PATH_SUFFIX_SAVE = '../'
 SAMPLE_RATE = 16000
 NUM_MFCC = 30
 FRAME = 512
+NUM_PCA = 65
+
+
+def convert_to_labels(preds, i2c, k=2):
+    ans = []
+    ids = []
+    for p in preds:
+        idx = np.argsort(p)[::-1]
+        ids.append([i for i in idx[:k]])
+        ans.append(' '.join([i2c[i] for i in idx[:k]]))
+
+    return ans, ids
 
 
 def get_mfcc_data(name, path):
