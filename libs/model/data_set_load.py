@@ -6,7 +6,7 @@ import os
 import argparse
 
 from tqdm import tqdm
-from model.feature_engineer import get_mfcc, NUM_MFCC, SAMPLE_RATE, NUM_PCA
+from predict.feature_engineer import get_mfcc, NUM_MFCC, SAMPLE_RATE, NUM_PCA
 
 tqdm.pandas()
 

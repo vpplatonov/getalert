@@ -17,7 +17,7 @@ from sklearn.decomposition import PCA
 
 from sklearn.svm import SVC
 from model.data_set_load import LNAME_COLUMN
-from model.feature_engineer import convert_to_labels, NUM_PCA
+from predict.feature_engineer import convert_to_labels, NUM_PCA
 
 tqdm.pandas()
 
