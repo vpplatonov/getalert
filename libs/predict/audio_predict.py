@@ -11,9 +11,10 @@ from sklearn.decomposition import PCA
 
 import librosa
 
-from model.feature_engineer import (
+from predict.feature_engineer import (
     SAMPLE_RATE, get_mfcc_feature, convert_to_labels, NUM_PCA,
-    PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE
+    PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE,
+
 )
 from predict.strategy import predict_category
 
