@@ -1,3 +1,4 @@
+
 Basicaly idea was got from https://github.com/giulbia/baby_cry_detection
 
 Main kernel got from kaggle competition https://www.kaggle.com/anmour/svm-using-mfcc-features
@@ -175,3 +176,10 @@ donateacry-ios-upload-bucket Audio: adpcm_ima_qt (ima4 / 0x34616D69), 16000 Hz, 
 903 - Baby laugh
 0.06481481481481481
 ```
+
+
+### On the image
+
+first - original
+second - after studio
+third - w/o low frequency
