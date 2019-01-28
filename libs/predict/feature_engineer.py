@@ -45,7 +45,7 @@ def get_mfcc_feature(data):
         ft2 = librosa.feature.zero_crossing_rate(data)[0]
         ft3 = librosa.feature.spectral_rolloff(data, sr=SAMPLE_RATE)[0]
         ft4 = librosa.feature.spectral_centroid(data, sr=SAMPLE_RATE)[0]
-        ft5 = librosa.feature.spectral_contrast(data, sr=SAMPLE_RATE)[0]
+        ft5 = librosa.feature.spectral_contrast(data, sr=SAMPLE_RATE)
         ft6 = librosa.feature.spectral_bandwidth(data, sr=SAMPLE_RATE)[0]
         ft7 = librosa.core.power_to_db(librosa.feature.melspectrogram(data, sr=SAMPLE_RATE))
         ft8 = librosa.feature.rmse(data)[0]
