@@ -101,8 +101,7 @@ def main():
                                                       random_state=42,
                                                       shuffle=True)
 
-    clf = SVC(kernel='rbf', probability=True, gamma='scale')
-
+    clf = SVC(kernel='rbf', probability=True, gamma='auto')
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_val)
 
@@ -117,14 +116,15 @@ def main():
     # print(accuracy_score(clf.predict(X_test), y_test))
 
     # Define the paramter grid for C from 0.001 to 10, gamma from 0.001 to 10
-    C_grid = [4, 6, 8]
+    C_grid = [1, 8, 10, 100]
     gamma_grid = [0.001, 0.005, 0.01]
     param_grid = {'C': C_grid, 'gamma': gamma_grid}
 
     grid = GridSearchCV(SVC(kernel='rbf', probability=True, gamma='auto'),
                         param_grid,
                         cv=10,
-                        scoring="accuracy")
+                        scoring="accuracy",
+                        n_jobs=-1)
     grid.fit(X_train, y_train)
 
     performance = grid.best_score_
