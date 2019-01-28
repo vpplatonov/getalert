@@ -43,10 +43,10 @@ def get_mfcc_feature(data):
     try:
         ft1 = librosa.feature.mfcc(data, sr=SAMPLE_RATE, n_mfcc=NUM_MFCC)
         ft2 = librosa.feature.zero_crossing_rate(data)[0]
-        ft3 = librosa.feature.spectral_rolloff(data)[0]
-        ft4 = librosa.feature.spectral_centroid(data)[0]
-        ft5 = librosa.feature.spectral_contrast(data)[0]
-        ft6 = librosa.feature.spectral_bandwidth(data)[0]
+        ft3 = librosa.feature.spectral_rolloff(data, sr=SAMPLE_RATE)[0]
+        ft4 = librosa.feature.spectral_centroid(data, sr=SAMPLE_RATE)[0]
+        ft5 = librosa.feature.spectral_contrast(data, sr=SAMPLE_RATE)[0]
+        ft6 = librosa.feature.spectral_bandwidth(data, sr=SAMPLE_RATE)[0]
         ft1_trunc = np.hstack((np.mean(ft1, axis=1),
                                np.std(ft1, axis=1),
                                skew(ft1, axis=1),
