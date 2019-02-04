@@ -8,6 +8,7 @@ import numpy as np
 import math
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+import logging
 
 import librosa
 
@@ -72,6 +73,8 @@ def model_init(load_path_model, load_path_label):
 
 def audio_load(load_path_data, file_name):
     play_list = list()
+
+    logging.info('audio_load', file_name)
 
     # load audio with different length
     # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data from Data Generator

@@ -37,16 +37,16 @@ def get_mfcc_data(name, path):
 
 def get_mfcc_feature(data):
     """ Generate mfcc features with mean and standard deviation
-            all librosa features have hop_length=512 by default
-        """
+        all librosa features have hop_length=512 by default
+    """
 
     try:
         ft1 = librosa.feature.mfcc(data, sr=SAMPLE_RATE, n_mfcc=NUM_MFCC)
-        ft2 = librosa.feature.zero_crossing_rate(data)[0]
-        ft3 = librosa.feature.spectral_rolloff(data, sr=SAMPLE_RATE)[0]
-        ft4 = librosa.feature.spectral_centroid(data, sr=SAMPLE_RATE)[0]
-        ft5 = librosa.feature.spectral_contrast(data, sr=SAMPLE_RATE)[0]
-        ft6 = librosa.feature.spectral_bandwidth(data, sr=SAMPLE_RATE)[0]
+        ft2 = librosa.feature.zero_crossing_rate(data, hop_length=FRAME)[0]
+        ft3 = librosa.feature.spectral_rolloff(data, sr=SAMPLE_RATE, hop_length=FRAME)[0]
+        ft4 = librosa.feature.spectral_centroid(data, sr=SAMPLE_RATE, hop_length=FRAME)[0]
+        ft5 = librosa.feature.spectral_contrast(data, sr=SAMPLE_RATE, n_bands=6, fmin=200.0)[0]
+        ft6 = librosa.feature.spectral_bandwidth(data, sr=SAMPLE_RATE, hop_length=FRAME)[0]
         ft1_trunc = np.hstack((np.mean(ft1, axis=1),
                                np.std(ft1, axis=1),
                                skew(ft1, axis=1),
@@ -59,8 +59,8 @@ def get_mfcc_feature(data):
         ft5_trunc = np.hstack((np.mean(ft5), np.std(ft5), skew(ft5), np.max(ft5), np.median(ft5), np.min(ft5)))
         ft6_trunc = np.hstack((np.mean(ft6), np.std(ft6), skew(ft6), np.max(ft6), np.median(ft6), np.max(ft6)))
         return pd.Series(np.hstack((ft1_trunc, ft2_trunc, ft3_trunc, ft4_trunc, ft5_trunc, ft6_trunc)))
-    except:
-        print('bad file')
+    except Exception as error:
+        print('bad file', error)
         return pd.Series([0] * 210)
 
 

@@ -34,7 +34,8 @@ def main():
     # READ FILES IN SUB-FOLDERS of load_path and FEATURE ENGINEERING
 
     # list load_path sub-folders
-    regex = re.compile(r'^donateacry-ios.+')
+    regex = re.compile(r'^donateacry.+')
+    # regex = re.compile(r'^donateacry-ios.+')
     directory_list = [i for i in os.listdir(load_path) if regex.search(i)]
     # directory_list = [i for i in os.listdir(load_path)]
 
@@ -72,7 +73,7 @@ def main():
             #     Panic - even if selected category present in second place
             pred = predict_category(predictions,
                                     category='crying_baby',
-                                    strategy='Half')
+                                    strategy='Panic')
 
             # X = np.concatenate((X, avg_features), axis=0)
             y.append((audio_file, pred))
