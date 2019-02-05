@@ -29,3 +29,4 @@ docker login -u AWS -p eyJwYXlsb2FkIjoiQ3hUcTZvQWwvT2....Dk0MDEzMTV9 https://XXX
 
 ### AWS push docker image
 
+https://github.com/awslabs/amazon-sagemaker-examples/blob/master/advanced_functionality/scikit_bring_your_own/container/build_and_push.sh
