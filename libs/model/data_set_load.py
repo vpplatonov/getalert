@@ -10,7 +10,7 @@ from predict.feature_engineer import get_mfcc, NUM_MFCC, SAMPLE_RATE, NUM_PCA
 
 tqdm.pandas()
 
-PATH_SUFFIX = 'ESC-50-master/'
+PATH_SUFFIX = '../ESC-50/'
 PATH_SUFFIX_SAVE = '../'
 
 FNAME_COLUMN = 'filename'

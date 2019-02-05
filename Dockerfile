@@ -1,5 +1,9 @@
 FROM python:3.7.2-stretch
 
+RUN apt-get update
+RUN apt-get install -y libav-tools
+RUN apt-get install -y ffmpeg
+
 WORKDIR /usr/src/app
 
 # add requirements (to leverage Docker cache)

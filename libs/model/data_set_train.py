@@ -117,7 +117,7 @@ def main():
     # print(accuracy_score(clf.predict(X_test), y_test))
 
     # Define the paramter grid for C from 0.001 to 10, gamma from 0.001 to 10
-    C_grid = [4, 6, 8]
+    C_grid = [1, 4, 6, 8, 10]
     gamma_grid = [0.001, 0.005, 0.01]
     param_grid = {'C': C_grid, 'gamma': gamma_grid}
 

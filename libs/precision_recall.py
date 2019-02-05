@@ -24,7 +24,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--load_path',
                         # default='{}/../../baby_cry_detection/data'.format(os.path.dirname(os.path.abspath(__file__)))
-                        default='{}/../../donateacry-corpus-master'.format(os.path.dirname(os.path.abspath(__file__)))
+                        default='{}/../../donateacry-corpus'.format(os.path.dirname(os.path.abspath(__file__)))
                         )
 
     # Arguments
