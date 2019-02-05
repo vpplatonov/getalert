@@ -11,9 +11,9 @@ docker exec -ti XXXXXXXXXX sh -c "python dataset.py"
 
 ```bash
 (getalert) C:\Users\User\workspace\getalert>docker ps -a
-```
 CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS                      PORTS               NAMES
 97e3feaac88b        getalert            "/bin/sh -c 'python …"   20 minutes ago      Exited (1) 20 minutes ago                       flamboyant_knuth
+```
 
 ```bash
 docker exec -ti XXXXXXXXXX sh -c "python train.py"
