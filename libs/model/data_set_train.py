@@ -1,6 +1,7 @@
 # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data
 import numpy as np
 import pandas as pd
+import logging
 
 import os
 import pickle
@@ -21,18 +22,21 @@ from predict.feature_engineer import convert_to_labels, NUM_PCA
 
 tqdm.pandas()
 
-PATH_SUFFIX_LOAD = '../'
+# PATH_SUFFIX_LOAD = '../'
+PATH_SUFFIX_LOAD = '/opt/ml/'
 # PATH_SUFFIX_LOAD = '../ESC-50-master/'
 # PATH_SUFFIX_SAVE = '../ESC-50-master/'
-PATH_SUFFIX_SAVE = '../'
+# PATH_SUFFIX_SAVE = '../'
+PATH_SUFFIX_SAVE = '/opt/ml/'
 
 
 def data_set_load(test_size=0.2, random_state=42):
     parser = argparse.ArgumentParser()
+    # base_path = os.path.dirname(os.path.abspath(__file__))
+    base_path = PATH_SUFFIX_LOAD
     parser.add_argument('--load_path',
-                        default='{}/../{}output/dataset/'.format(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            PATH_SUFFIX_LOAD
+                        default='{}output/dataset/'.format(
+                            base_path
                         ))
 
     # Arguments
@@ -50,8 +54,8 @@ def data_set_load(test_size=0.2, random_state=42):
                                                         random_state=random_state,
                                                         shuffle=True)
 
-    print(X_train.shape)
-    print(X_test.shape)
+    logging.debug(X_train.shape)
+    logging.debug(X_test.shape)
 
     np.save(os.path.join(load_path, 'train_dataset.npy'), X_train, fix_imports=False)
 
@@ -60,15 +64,15 @@ def data_set_load(test_size=0.2, random_state=42):
 
 def main():
     parser = argparse.ArgumentParser()
+    # base_path = os.path.dirname(os.path.abspath(__file__))
+    base_path = PATH_SUFFIX_LOAD
     parser.add_argument('--save_path',
-                        default='{}/../{}output/model/'.format(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            PATH_SUFFIX_SAVE
+                        default='{}output/model/'.format(
+                            base_path
                         ))
     parser.add_argument('--load_path_label',
-                        default='{}/../{}output/dataset/'.format(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            PATH_SUFFIX_LOAD
+                        default='{}output/dataset/'.format(
+                            base_path
                         ))
 
     # Arguments
@@ -91,7 +95,7 @@ def main():
     X_pca = pca.transform(X_scaled)
     X_test_pca = pca.transform(X_test_scaled)
 
-    print(sum(pca.explained_variance_ratio_))
+    logging.debug(sum(pca.explained_variance_ratio_))
 
     y_pca = y_train
 
@@ -106,7 +110,7 @@ def main():
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_val)
 
-    print(accuracy_score(y_pred, y_val))
+    logging.debug(accuracy_score(y_pred, y_val))
     # print(f1_score(y_pred, y_val))
 
     # clf = SVC(kernel='rbf', probability=True, C=4, gamma=0.01)
@@ -131,11 +135,11 @@ def main():
     parameters = grid.best_params_
 
     # Find the best model
-    print(performance)
+    logging.debug(performance)
 
-    print(parameters)
+    logging.debug(parameters)
 
-    print(grid.best_estimator_)
+    logging.debug(grid.best_estimator_)
 
     # Save performances
     with open(os.path.join(save_path, 'performance.json'), 'w') as fp:
@@ -150,7 +154,7 @@ def main():
     clf.fit(X_pca, y_pca)
     y_pred = clf.predict(X_test_pca)
 
-    print(accuracy_score(y_pred, y_test))
+    logging.debug(accuracy_score(y_pred, y_test))
 
     # Save model
     with open(os.path.join(save_path, 'model.pkl'), 'wb') as fp:

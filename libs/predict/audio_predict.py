@@ -9,40 +9,40 @@ import math
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import logging
-
 import librosa
 
 from predict.feature_engineer import (
     SAMPLE_RATE, get_mfcc_feature, convert_to_labels, NUM_PCA,
-    PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE,
-
+    PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE
 )
 from predict.strategy import predict_category
 
 SOUND_DURATION = 5.0
 SOUND_RANGE = 1
+# For Docker env
+PATH_SUFFIX = '/opt/ml/'
 
 
 def get_file_name():
     parser = argparse.ArgumentParser()
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    # base_path = PATH_SUFFIX
+
     parser.add_argument('--load_path_data',
-                        default='{}/../audio_samples/'.format(os.path.dirname(os.path.abspath(__file__))))
+                        default='{}/../audio_samples/'.format(base_path))
     parser.add_argument('--load_path_model',
-                        default='{}/../{}output/model/'.format(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            PATH_SUFFIX_SAVE
+                        default='{}output/model/'.format(
+                            PATH_SUFFIX
                         ))
     parser.add_argument('--load_path_label',
-                        default='{}/../{}output/dataset/'.format(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            PATH_SUFFIX_LOAD
+                        default='{}output/dataset/'.format(
+                            PATH_SUFFIX
                         ))
     parser.add_argument('--file_name', default='V_2017-04-01+08_04_36=0_13.mp3')
 
     parser.add_argument('--save_path',
-                        default='{}/../{}output/prediction/'.format(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            PATH_SUFFIX_SAVE
+                        default='{}output/prediction/'.format(
+                            PATH_SUFFIX
                         ))
 
     # Arguments
@@ -74,7 +74,7 @@ def model_init(load_path_model, load_path_label):
 def audio_load(load_path_data, file_name):
     play_list = list()
 
-    logging.info('audio_load', file_name)
+    logging.debug('audio_load')
 
     # load audio with different length
     # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data from Data Generator

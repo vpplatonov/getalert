@@ -16,4 +16,8 @@ ADD . /usr/src/app
 
 WORKDIR /usr/src/app/libs
 
-CMD python prediction.py
+# for AWS env
+ENV PATH=/usr/src/app/libs:${PATH}
+RUN chmod +x /usr/src/app/libs/model /usr/src/app/libs/predict /usr/src/app/libs/
+
+CMD tail -f /dev/null

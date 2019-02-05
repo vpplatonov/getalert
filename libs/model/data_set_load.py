@@ -7,10 +7,14 @@ import argparse
 
 from tqdm import tqdm
 from predict.feature_engineer import get_mfcc, NUM_MFCC, SAMPLE_RATE, NUM_PCA
+import logging
 
 tqdm.pandas()
 
-PATH_SUFFIX = '../ESC-50/'
+# For local Env
+# PATH_SUFFIX = '../../../ESC-50/'
+# For Docker env
+PATH_SUFFIX = '/opt/ml/'
 PATH_SUFFIX_SAVE = '../'
 
 FNAME_COLUMN = 'filename'
@@ -20,10 +24,10 @@ TARGETS = [0,1,2,3,4,5,6,7,8,9,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,3
 
 
 def data_set_load():
-    audio_train_files = os.listdir(f"../{PATH_SUFFIX}audio")
+    audio_train_files = os.listdir(f"{PATH_SUFFIX}audio")
     # audio_test_files = os.listdir(f"../{PATH_SUFFIX}audio_test")
 
-    train = pd.read_csv(f"../{PATH_SUFFIX}meta/esc50.csv")
+    train = pd.read_csv(f"{PATH_SUFFIX}meta/esc50.csv")
     # filter
     train = train[train['target'].isin(TARGETS)]
     return train, audio_train_files
@@ -31,20 +35,20 @@ def data_set_load():
 
 def main():
     parser = argparse.ArgumentParser()
+
+    # base_path = os.path.dirname(os.path.abspath(__file__))
+    base_path = PATH_SUFFIX
     parser.add_argument('--load_path',
-                        default='{}/../{}output/dataset/'.format(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            PATH_SUFFIX_SAVE
+                        default='{}output/dataset/'.format(
+                            base_path
                         ))
     parser.add_argument('--save_path',
-                        default='{}/../{}output/model/'.format(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            PATH_SUFFIX_SAVE
+                        default='{}output/model/'.format(
+                            base_path
                         ))
     parser.add_argument('--log_path',
-                        default='{}/../{}'.format(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            PATH_SUFFIX_SAVE
+                        default='{}'.format(
+                            base_path
                         ))
 
     # Arguments
@@ -58,8 +62,8 @@ def main():
     train_data = pd.DataFrame()
     train_data[FNAME_COLUMN] = train[FNAME_COLUMN]
 
-    train_data = train_data[FNAME_COLUMN].progress_apply(get_mfcc, path=f"../{PATH_SUFFIX}audio/")
-    print('done loading train mfcc')
+    train_data = train_data[FNAME_COLUMN].progress_apply(get_mfcc, path=f"{PATH_SUFFIX}audio/")
+    logging.debug('done loading train mfcc')
 
     train_data[FNAME_COLUMN] = train[FNAME_COLUMN]
     train_data[LNAME_COLUMN] = train[LNAME_COLUMN]
@@ -70,8 +74,8 @@ def main():
     labels = np.sort(np.unique(train_data[LNAME_COLUMN].values))
     num_class = len(labels)
 
-    print(f"Feature names {', '.join(labels)}")
-    print(f"Class nums {num_class}")
+    logging.debug(f"Feature names {', '.join(labels)}")
+    logging.debug(f"Class nums {num_class}")
 
     c2i = {}
     i2c = {}
@@ -82,7 +86,7 @@ def main():
 
     # Save features
     # Save to numpy binary format
-    # logging.info('Saving training set...')
+    logging.debug('Saving training set...')
     np.save(os.path.join(load_path, 'dataset.npy'), X, fix_imports=False)
     np.save(os.path.join(load_path, 'labels.npy'), y)
     np.save(os.path.join(load_path, 'to_labels.npy'), i2c, fix_imports=False)

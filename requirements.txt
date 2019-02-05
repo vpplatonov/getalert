@@ -15,13 +15,8 @@ grpcio==1.16.1
 h5py==2.9.0
 imbalanced-learn==0.4.3
 imblearn==0.0
-ipykernel==5.1.0
-ipython==7.2.0
-ipython-genutils==0.2.0
-ipywidgets==7.4.2
 isort==4.3.4
 jedi==0.13.2
-Jinja2==2.10
 joblib==0.13.1
 jsonschema==2.6.0
 Keras==2.2.4
