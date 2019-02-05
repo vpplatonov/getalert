@@ -24,7 +24,7 @@ docker exec -ti XXXXXXXXXX sh -c "python train.py"
 aws ecr get-login --no-include-email
 
 ```bash
-docker login -u AWS -p eyJwYXlsb2FkIjoiQ3hUcTZvQWwvT2....Dk0MDEzMTV9 https://012556223264.dkr.ecr.eu-west-1.amazonaws.com
+docker login -u AWS -p eyJwYXlsb2FkIjoiQ3hUcTZvQWwvT2....Dk0MDEzMTV9 https://XXXXXXXX.dkr.ecr.eu-west-1.amazonaws.com
 ```
 
 ### AWS push docker image
