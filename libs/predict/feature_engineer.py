@@ -61,6 +61,8 @@ def get_mfcc_feature(data):
         return pd.Series(np.hstack((ft1_trunc, ft2_trunc, ft3_trunc, ft4_trunc, ft5_trunc, ft6_trunc)))
     except Exception as error:
         print('bad file', error)
+        # (210, ) n_mfcc = 30
+        # (108, ) n_mfcc = 13
         return pd.Series([0] * 210)
 
 

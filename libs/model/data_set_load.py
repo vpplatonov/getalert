@@ -25,7 +25,7 @@ TARGETS = [0,1,2,3,4,5,6,7,8,9,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,3
 
 def data_set_load():
     audio_train_files = os.listdir(f"{PATH_SUFFIX}audio")
-    # audio_test_files = os.listdir(f"../{PATH_SUFFIX}audio_test")
+    # audio_test_files = os.listdir(f"../{PATH_SUFFIX}audio_test_bad")
 
     train = pd.read_csv(f"{PATH_SUFFIX}meta/esc50.csv")
     # filter
@@ -38,18 +38,9 @@ def main():
 
     # base_path = os.path.dirname(os.path.abspath(__file__))
     base_path = PATH_SUFFIX
-    parser.add_argument('--load_path',
-                        default='{}output/dataset/'.format(
-                            base_path
-                        ))
-    parser.add_argument('--save_path',
-                        default='{}output/model/'.format(
-                            base_path
-                        ))
-    parser.add_argument('--log_path',
-                        default='{}'.format(
-                            base_path
-                        ))
+    parser.add_argument('--load_path', default='{}output/dataset/'.format(base_path))
+    parser.add_argument('--save_path', default='{}output/model/'.format(base_path))
+    parser.add_argument('--log_path', default='{}'.format(base_path))
 
     # Arguments
     args = parser.parse_args()
