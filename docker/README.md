@@ -4,6 +4,8 @@ docker build -t getalert .
 
 ### Run
 
+Disk C: should be shared by docker in desktop settings
+
 ```bash
 docker run --rm -it -v C:\Users\User\workspace\ESC-50:/opt/ml getalert
 docker exec -ti XXXXXXXXXX sh -c "python dataset.py"

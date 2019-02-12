@@ -1,4 +1,4 @@
-FROM python:3.7.2-stretch
+FROM python:3.6.8-stretch
 
 RUN apt-get update
 RUN apt-get install -y libav-tools
