@@ -40,7 +40,7 @@ def get_file_name():
     parser.add_argument('--file_name', default='V_2017-04-01+08_04_36=0_13.mp3')
 
     parser.add_argument('--save_path',
-                        default='{}/../{}output/prediction/'.format(
+                        default='{}/../{}output/audio-ios-mix/'.format(
                             os.path.dirname(os.path.abspath(__file__)),
                             PATH_SUFFIX_SAVE
                         ))
@@ -76,9 +76,9 @@ def audio_load(load_path_data, file_name):
 
     logging.info('audio_load', file_name)
 
-    # load audio with different length
+    # load audio-ios-mix with different length
     # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data from Data Generator
-    # Read and Resample the audio
+    # Read and Resample the audio-ios-mix
     data, _ = librosa.core.load(os.path.join(load_path_data, file_name),
                                 sr=SAMPLE_RATE,
                                 # res_type='kaiser_fast'
@@ -142,7 +142,7 @@ def audio_prediction():
     play_list_processed = scaler.transform(play_list_processed)
     play_list_processed = pca.transform(play_list_processed)
     predictions = play_list_predict(model, i2c, play_list_processed)
-    # print(predictions)
+    print(predictions)
 
     # Voting strategy - must be changed to first success
     #     Full - all category the same in first place
@@ -150,11 +150,11 @@ def audio_prediction():
     #     Panic - even if selected category present in second place
     pred = predict_category(predictions,
                             category='crying_baby',
-                            strategy='Panic')
+                            strategy='Half')
 
-    # Save prediction result
-    with open(os.path.join(save_path, 'prediction.txt'), 'w') as text_file:
-        text_file.write(f"{pred}")
+    # Save audio-ios-mix result
+    with open(os.path.join(save_path, 'audio-ios-mix.txt'), 'w') as text_file:
+        text_file.write('{}'.format(pred))
 
     return pred
 

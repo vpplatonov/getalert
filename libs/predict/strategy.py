@@ -12,7 +12,7 @@ def predict_category(predictions, category='crying_baby', strategy='Panic'):
 
     :param
     predictions: list of Dict with {category: probabilities}
-    category: for seek in prediction
+    category: for seek in audio-ios-mix
     strategy:
     :return: '1' - true, '0' - false
     """

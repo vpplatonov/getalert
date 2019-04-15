@@ -18,6 +18,7 @@ from sklearn.decomposition import PCA
 from sklearn.svm import SVC
 from model.data_set_load import LNAME_COLUMN
 from predict.feature_engineer import convert_to_labels, NUM_PCA
+from xgboost import XGBClassifier
 
 tqdm.pandas()
 
@@ -56,6 +57,73 @@ def data_set_load(test_size=0.2, random_state=42):
     np.save(os.path.join(load_path, 'train_dataset.npy'), X_train, fix_imports=False)
 
     return X_train, X_test, y_train, y_test
+
+
+def model_train(X_train, X_val, y_train, y_val, save_path, model_type='SVC'):
+
+    print("Model type: ", model_type)
+
+    if model_type == 'SVC':
+        clf = SVC(kernel='rbf', probability=True, gamma='scale')
+
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_val)
+
+        print(accuracy_score(y_pred, y_val))
+        # print(f1_score(y_pred, y_val))
+
+        # clf = SVC(kernel='rbf', probability=True, C=4, gamma=0.01)
+        # clf = SVC(kernel='rbf', probability=True, gamma='scale')
+        #
+        # clf.fit(X_train, y_train)
+        #
+        # print(accuracy_score(clf.predict(X_test), y_test))
+
+        # Define the paramter grid for C from 0.001 to 10, gamma from 0.001 to 10
+        C_grid = [1, 4, 6, 8, 10]
+        gamma_grid = [0.001, 0.005, 0.01]
+        param_grid = {'C': C_grid, 'gamma': gamma_grid}
+
+        grid = GridSearchCV(SVC(kernel='rbf', probability=True, gamma='auto'),
+                            param_grid,
+                            cv=10,
+                            scoring="accuracy")
+        grid.fit(X_train, y_train)
+
+        performance = grid.best_score_
+        parameters = grid.best_params_
+
+        # Find the best model
+        print(performance)
+        print(parameters)
+        print(grid.best_estimator_)
+
+        # Save performances
+        with open(os.path.join(save_path, 'performance.json'), 'w') as fp:
+            json.dump(performance, fp)
+
+        # Save parameters
+        with open(os.path.join(save_path, 'parameters.json'), 'w') as fp:
+            json.dump(parameters, fp)
+
+        # final model
+        clf = SVC(kernel='rbf', C=parameters['C'], gamma=parameters['gamma'], probability=True)
+
+    else:
+        # XGBoost from https://www.kaggle.com/amlanpraharaj/xgb-using-mfcc-opanichev-s-features-lb-0-811
+        clf = XGBClassifier(max_depth=5,
+                            learning_rate=0.05,
+                            n_estimators=3000,
+                            n_jobs=-1,
+                            random_state=0,
+                            reg_alpha=0.2,
+                            colsample_bylevel=0.9,
+                            colsample_bytree=0.9)
+
+        clf.fit(X_train, y_train)
+        print(accuracy_score(clf.predict(X_val), y_val))
+
+    return clf
 
 
 def main():
@@ -101,53 +169,12 @@ def main():
                                                       random_state=42,
                                                       shuffle=True)
 
-    clf = SVC(kernel='rbf', probability=True, gamma='scale')
+    # model train model_type='SVC' / 'XGBoost'
+    clf = model_train(X_train, X_val, y_train, y_val, save_path, model_type='SVC')
 
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_val)
-
-    print(accuracy_score(y_pred, y_val))
-    # print(f1_score(y_pred, y_val))
-
-    # clf = SVC(kernel='rbf', probability=True, C=4, gamma=0.01)
-    # clf = SVC(kernel='rbf', probability=True, gamma='scale')
-    #
-    # clf.fit(X_train, y_train)
-    #
-    # print(accuracy_score(clf.predict(X_test), y_test))
-
-    # Define the paramter grid for C from 0.001 to 10, gamma from 0.001 to 10
-    C_grid = [1, 4, 6, 8, 10]
-    gamma_grid = [0.001, 0.005, 0.01]
-    param_grid = {'C': C_grid, 'gamma': gamma_grid}
-
-    grid = GridSearchCV(SVC(kernel='rbf', probability=True, gamma='auto'),
-                        param_grid,
-                        cv=10,
-                        scoring="accuracy")
-    grid.fit(X_train, y_train)
-
-    performance = grid.best_score_
-    parameters = grid.best_params_
-
-    # Find the best model
-    print(performance)
-
-    print(parameters)
-
-    print(grid.best_estimator_)
-
-    # Save performances
-    with open(os.path.join(save_path, 'performance.json'), 'w') as fp:
-        json.dump(performance, fp)
-
-    # Save parameters
-    with open(os.path.join(save_path, 'parameters.json'), 'w') as fp:
-        json.dump(parameters, fp)
-
-    # final model
-    clf = SVC(kernel='rbf', C=parameters['C'], gamma=parameters['gamma'], probability=True)
+    # final model training on entire data
     clf.fit(X_pca, y_pca)
+
     y_pred = clf.predict(X_test_pca)
 
     print(accuracy_score(y_pred, y_test))

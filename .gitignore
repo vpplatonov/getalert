@@ -8,6 +8,15 @@ output/
 venv/
 ENV/
 
+# work files
+X4/
+X5/
+audio/
+baby-cry-verified/
+libs/audio_samples/*
+*.csv
+*.ipynb
+
 # Jupyter Notebook
 .ipynb_checkpoints
 

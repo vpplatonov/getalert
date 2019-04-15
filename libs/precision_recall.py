@@ -13,7 +13,7 @@ import shutil
 from predict.audio_predict import get_file_name, model_init, audio_load, play_list_predict
 from predict.strategy import predict_category
 
-DESTINATION = 'predicted'
+DESTINATION = 'audio-ios-mix'
 
 
 def main():
@@ -52,7 +52,7 @@ def main():
 
         file_list = os.listdir(os.path.join(load_path, directory))
 
-        # iteration on audio files in each sub-folder
+        # iteration on audio-ios-mix files in each sub-folder
         for audio_file in file_list:
             # file_reader = Reader(os.path.join(load_path, directory, audio_file))
             # iOS:
@@ -75,7 +75,7 @@ def main():
                                     category='crying_baby',
                                     strategy='Panic')
 
-            # X = np.concatenate((X, avg_features), axis=0)
+            # X4full = np.concatenate((X4full, avg_features), axis=0)
             y.append((audio_file, pred))
             # if pred == '1':
             #     print((audio_file, pred))

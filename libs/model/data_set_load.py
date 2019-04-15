@@ -17,6 +17,7 @@ FNAME_COLUMN = 'filename'
 LNAME_COLUMN = 'category'
 FOLDS = [1, 3, 4]
 TARGETS = [0,1,2,3,4,5,6,7,8,9,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39]
+# TARGETS = []
 
 
 def data_set_load():
@@ -25,7 +26,9 @@ def data_set_load():
 
     train = pd.read_csv(f"../{PATH_SUFFIX}meta/esc50.csv")
     # filter
-    train = train[train['target'].isin(TARGETS)]
+    if len(TARGETS) > 0:
+        train = train[train['target'].isin(TARGETS)]
+
     return train, audio_train_files
 
 
