@@ -10,9 +10,10 @@ ENV/
 
 # work files
 X4/
-X5/
+X5*/
+baby-cry-*/
+baby_cry_*/
 audio/
-baby-cry-verified/
 libs/audio_samples/*
 *.csv
 *.ipynb

@@ -26,6 +26,7 @@ PATH_SUFFIX_LOAD = '../'
 # PATH_SUFFIX_LOAD = '../ESC-50-master/'
 # PATH_SUFFIX_SAVE = '../ESC-50-master/'
 PATH_SUFFIX_SAVE = '../'
+PCA = False
 
 
 def data_set_load(test_size=0.2, random_state=42):
@@ -139,38 +140,56 @@ def main():
                             PATH_SUFFIX_LOAD
                         ))
 
+    parser.add_argument('--load_path',
+                        default='{}/../{}output/dataset/'.format(
+                            os.path.dirname(os.path.abspath(__file__)),
+                            PATH_SUFFIX_LOAD
+                        ))
+
     # Arguments
     args = parser.parse_args()
     save_path = os.path.normpath(args.save_path)
     load_path_label = os.path.normpath(args.load_path_label)
+    load_path = os.path.normpath(args.load_path)
 
     i2c = np.load(os.path.join(load_path_label, 'to_labels.npy')).tolist()
 
     X_train, X_test, y_train, y_test = data_set_load(test_size=0.2,
-                                                     random_state=42)
+                                                     random_state=10)
 
-    # Apply scaling for PCA
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    X_val = X_test
+    y_val = y_test
+    X_test_pca = X_test
 
-    # Apply PCA for dimension reduction
-    pca = PCA(n_components=NUM_PCA).fit(X_scaled)
-    X_pca = pca.transform(X_scaled)
-    X_test_pca = pca.transform(X_test_scaled)
+    model_type = 'XGBoost'  #'SVC'
 
-    print(sum(pca.explained_variance_ratio_))
+    # # Apply scaling for PCA
+    if model_type == 'SVC':
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
 
-    y_pca = y_train
+        # Apply PCA for dimension reduction
+        pca = PCA(n_components=NUM_PCA).fit(X_scaled)
+        X_pca = pca.transform(X_scaled)
+        X_test_pca = pca.transform(X_test_scaled)
 
-    # Fit an SVM model
-    X_train, X_val, y_train, y_val = train_test_split(X_pca, y_train,
-                                                      test_size=0.2,
-                                                      random_state=42,
-                                                      shuffle=True)
+        print(sum(pca.explained_variance_ratio_))
+
+        y_pca = y_train
+
+        # Fit an SVM model
+        X_train, X_val, y_train, y_val = train_test_split(X_pca, y_train,
+                                                          test_size=0.2,
+                                                          random_state=10,
+                                                          shuffle=True)
 
     # model train model_type='SVC' / 'XGBoost'
-    clf = model_train(X_train, X_val, y_train, y_val, save_path, model_type='SVC')
+    clf = model_train(X_train, X_val, y_train, y_val, save_path, model_type=model_type)
+
+    if model_type != 'SVC':
+        X_pca = np.load(os.path.join(load_path, 'dataset.npy'))
+        y_pca = np.load(os.path.join(load_path, 'labels.npy'))
 
     # final model training on entire data
     clf.fit(X_pca, y_pca)

@@ -3,8 +3,12 @@ import numpy as np
 import pandas as pd
 
 from scipy.stats import skew
-
+from tqdm import tqdm, tqdm_pandas
 import librosa
+import os
+import scipy
+
+tqdm.pandas()
 
 PATH_SUFFIX_LOAD = '../'
 # PATH_SUFFIX_LOAD = '../ESC-50-master/'
@@ -72,3 +76,115 @@ def get_mfcc(name, path):
     data = get_mfcc_data(name, path)
 
     return get_mfcc_feature(data)
+
+
+# Features from LightGBM baseline kernel: https://www.kaggle.com/opanichev/lightgbm-baseline
+# MAPk from https://github.com/benhamner/Metrics/blob/master/Python/ml_metrics/average_precision.py
+def apk(actual, predicted, k=10):
+    """
+    Computes the average precision at k.
+    This function computes the average prescision at k between two lists of
+    items.
+    Parameters
+    ----------
+    actual : list
+             A list of elements that are to be predicted (order doesn't matter)
+    predicted : list
+                A list of predicted elements (order does matter)
+    k : int, optional
+        The maximum number of predicted elements
+    Returns
+    -------
+    score : double
+            The average precision at k over the input lists
+    """
+    if len(predicted) > k:
+        predicted = predicted[:k]
+
+    score = 0.0
+    num_hits = 0.0
+
+    for i, p in enumerate(predicted):
+        if p in actual and p not in predicted[:i]:
+            num_hits += 1.0
+            score += num_hits / (i + 1.0)
+
+    if not actual:
+        return 0.0
+
+    return score / min(len(actual), k)
+
+
+def mapk(actual, predicted, k=10):
+    """
+    Computes the mean average precision at k.
+    This function computes the mean average prescision at k between two lists
+    of lists of items.
+    Parameters
+    ----------
+    actual : list
+             A list of lists of elements that are to be predicted
+             (order doesn't matter in the lists)
+    predicted : list
+                A list of lists of predicted elements
+                (order matters in the lists)
+    k : int, optional
+        The maximum number of predicted elements
+    Returns
+    -------
+    score : double
+            The mean average precision at k over the input lists
+    """
+    return np.mean([apk(a, p, k) for a, p in zip(actual, predicted)])
+
+
+def extract_feature(data):
+    features = {}
+
+    abs_data = np.abs(data)
+    diff_data = np.diff(data)
+
+    n = 1
+    features = calc_part_features(data, features, n=n)
+    features = calc_part_features(abs_data, features, n=n, prefix='abs_')
+    features = calc_part_features(diff_data, features, n=n, prefix='diff_')
+
+    n = 2
+    features = calc_part_features(data, features, n=n)
+    features = calc_part_features(abs_data, features, n=n, prefix='abs_')
+    features = calc_part_features(diff_data, features, n=n, prefix='diff_')
+
+    n = 3
+    features = calc_part_features(data, features, n=n)
+    features = calc_part_features(abs_data, features, n=n, prefix='abs_')
+    features = calc_part_features(diff_data, features, n=n, prefix='diff_')
+
+    return features
+
+
+def calc_part_features(data, features, n=2, prefix='', f_i=1):
+    for i in range(0, len(data), len(data) // n):
+        features['{}mean_{}_{}'.format(prefix, f_i, n)] = np.mean(data[i:i + len(data) // n])
+        features['{}std_{}_{}'.format(prefix, f_i, n)] = np.std(data[i:i + len(data) // n])
+        features['{}min_{}_{}'.format(prefix, f_i, n)] = np.min(data[i:i + len(data) // n])
+        features['{}max_{}_{}'.format(prefix, f_i, n)] = np.max(data[i:i + len(data) // n])
+
+    return features
+
+
+def extract_features(files, path, fname='fname'):
+    features = {}
+
+    for f in tqdm(files):
+        features[f] = {}
+
+        fs, data = scipy.io.wavfile.read(os.path.join(path, f))
+
+        features[f]['len'] = len(data)
+        if len(data) > 0:
+            features[f] = extract_feature(data)
+
+    features = pd.DataFrame(features).T.reset_index()
+    features.rename(columns={'index': fname}, inplace=True)
+
+    return features

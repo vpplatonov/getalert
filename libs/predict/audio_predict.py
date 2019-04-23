@@ -9,12 +9,13 @@ import math
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import logging
+import pandas as pd
 
 import librosa
 
 from predict.feature_engineer import (
     SAMPLE_RATE, get_mfcc_feature, convert_to_labels, NUM_PCA,
-    PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE,
+    PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE, extract_feature
 
 )
 from predict.strategy import predict_category
@@ -40,7 +41,7 @@ def get_file_name():
     parser.add_argument('--file_name', default='V_2017-04-01+08_04_36=0_13.mp3')
 
     parser.add_argument('--save_path',
-                        default='{}/../{}output/audio-ios-mix/'.format(
+                        default='{}/../{}output/prediction/'.format(
                             os.path.dirname(os.path.abspath(__file__)),
                             PATH_SUFFIX_SAVE
                         ))
@@ -52,7 +53,7 @@ def get_file_name():
         os.path.normpath(args.load_path_label), args.file_name
 
 
-def model_init(load_path_model, load_path_label):
+def model_init(load_path_model, load_path_label, isPCA=True):
     # https://stackoverflow.com/questions/41146759/check-sklearn-version-before-loading-model-using-joblib
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)
@@ -61,12 +62,15 @@ def model_init(load_path_model, load_path_label):
             model = pickle.load(fp)
 
     i2c = np.load(os.path.join(load_path_label, 'to_labels.npy')).tolist()
-    X_train = np.load(os.path.join(load_path_label, 'train_dataset.npy'))
 
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_train)
-    # Apply PCA for dimension reduction
-    pca = PCA(n_components=NUM_PCA).fit(X_scaled)
+    if isPCA:
+        X_train = np.load(os.path.join(load_path_label, 'train_dataset.npy'))
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X_train)
+        # Apply PCA for dimension reduction
+        pca = PCA(n_components=NUM_PCA).fit(X_scaled)
+    else:
+        pca = scaler = None
 
     return model, scaler, pca, i2c
 
@@ -76,9 +80,9 @@ def audio_load(load_path_data, file_name):
 
     logging.info('audio_load', file_name)
 
-    # load audio-ios-mix with different length
+    # load prediction with different length
     # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data from Data Generator
-    # Read and Resample the audio-ios-mix
+    # Read and Resample the prediction
     data, _ = librosa.core.load(os.path.join(load_path_data, file_name),
                                 sr=SAMPLE_RATE,
                                 # res_type='kaiser_fast'
@@ -95,8 +99,12 @@ def audio_load(load_path_data, file_name):
 
         for offset in range(math.floor((len(data) - input_length) / SAMPLE_RATE) + 1):
             # Feature extraction
-            tmp = get_mfcc_feature(data[(offset * SAMPLE_RATE):int(offset * SAMPLE_RATE + input_length)])
-            play_list.append(tmp)
+            chank_data = data[(offset * SAMPLE_RATE):int(offset * SAMPLE_RATE + input_length)]
+            tmp = get_mfcc_feature(chank_data)
+            chank_data = [int((v*2**16.0)/2) for v in chank_data]
+            tmp2 = pd.Series(list(extract_feature(chank_data).values()))
+            # print(tmp2)
+            play_list.append(pd.concat([tmp, tmp2]))
     else:
         if input_length > len(data):
             max_offset = input_length - len(data)
@@ -106,41 +114,36 @@ def audio_load(load_path_data, file_name):
         data = np.pad(data, (offset, int(input_length - len(data) - offset)), "constant")
         # Feature extraction
         tmp = get_mfcc_feature(data)
-        play_list.append(tmp)
-
-    # # audio_length = sampling_rate * audio_duration
-    # for offset in range(SOUND_RANGE):
-    #     audio_data, _ = librosa.load(os.path.join(load_path_data, file_name),
-    #                                  sr=SAMPLE_RATE,
-    #                                  mono=True,
-    #                                  offset=offset,
-    #                                  duration=SOUND_DURATION)
-    #     # Feature extraction
-    #     tmp = get_mfcc_feature(audio_data)
-    #     play_list.append(tmp)
+        # convert to int for extract_feature()
+        data = [int((v*2**16.0)/2) for v in data]
+        tmp2 = pd.Series(list(extract_feature(data).values()))
+        # play_list.append(tmp)
+        play_list.append(pd.concat([tmp, tmp2]))
 
     return play_list
 
 
-def play_list_predict(model, i2c, play_list_processed):
+def play_list_predict(model, i2c, play_list_processed, k=1):
     predictions = list()
 
     for signal in play_list_processed:
         predict = model.predict_proba([signal])
-        str_preds, idx = convert_to_labels(predict, i2c)
+        str_preds, idx = convert_to_labels(predict, i2c, k=k)
         predictions.append(dict(zip(str_preds[0].split(' '), predict[0][idx[0]])))
 
     return predictions
 
 
 def audio_prediction():
-
+    isPCA = False
     save_path, load_path_data, load_path_model, load_path_label, file_name = get_file_name()
-    model, scaler, pca, i2c = model_init(load_path_model, load_path_label)
+    model, scaler, pca, i2c = model_init(load_path_model, load_path_label, isPCA=isPCA)
 
     play_list_processed = audio_load(load_path_data, file_name)
-    play_list_processed = scaler.transform(play_list_processed)
-    play_list_processed = pca.transform(play_list_processed)
+    if isPCA:
+        play_list_processed = scaler.transform(play_list_processed)
+        play_list_processed = pca.transform(play_list_processed)
+
     predictions = play_list_predict(model, i2c, play_list_processed)
     print(predictions)
 
@@ -150,10 +153,10 @@ def audio_prediction():
     #     Panic - even if selected category present in second place
     pred = predict_category(predictions,
                             category='crying_baby',
-                            strategy='Half')
+                            strategy='Once')
 
-    # Save audio-ios-mix result
-    with open(os.path.join(save_path, 'audio-ios-mix.txt'), 'w') as text_file:
+    # Save prediction result
+    with open(os.path.join(save_path, 'prediction.txt'), 'w') as text_file:
         text_file.write('{}'.format(pred))
 
     return pred
