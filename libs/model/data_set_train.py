@@ -17,8 +17,17 @@ from sklearn.decomposition import PCA
 
 from sklearn.svm import SVC
 from model.data_set_load import LNAME_COLUMN
-from predict.feature_engineer import convert_to_labels, NUM_PCA
-from xgboost import XGBClassifier
+from predict.feature_engineer import convert_to_labels, NUM_PCA, MODEL_TYPE, read_audio, get_mfcc_feature
+from xgboost import XGBClassifier, XGBRegressor
+from pathlib import Path
+from .xgboost_train import balance_class_by_over_sampling, print_class_balance
+
+from keras.utils import to_categorical
+
+from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import roc_auc_score
+
+from sklearn.metrics import classification_report, confusion_matrix
 
 tqdm.pandas()
 
@@ -26,10 +35,9 @@ PATH_SUFFIX_LOAD = '../'
 # PATH_SUFFIX_LOAD = '../ESC-50-master/'
 # PATH_SUFFIX_SAVE = '../ESC-50-master/'
 PATH_SUFFIX_SAVE = '../'
-PCA = False
 
 
-def data_set_load(test_size=0.2, random_state=42):
+def data_set_load(test_size=0.2, random_state=42, isPCA=True):
     parser = argparse.ArgumentParser()
     parser.add_argument('--load_path',
                         default='{}/../{}output/dataset/'.format(
@@ -40,6 +48,7 @@ def data_set_load(test_size=0.2, random_state=42):
     # Arguments
     args = parser.parse_args()
     load_path = os.path.normpath(args.load_path)
+    print(load_path)
 
     # Load features
     # Load from numpy binary format
@@ -55,12 +64,221 @@ def data_set_load(test_size=0.2, random_state=42):
     print(X_train.shape)
     print(X_test.shape)
 
-    np.save(os.path.join(load_path, 'train_dataset.npy'), X_train, fix_imports=False)
+    if isPCA:
+        np.save(os.path.join(load_path, 'train_dataset.npy'), X_train, fix_imports=False)
 
     return X_train, X_test, y_train, y_test
 
 
-def model_train(X_train, X_val, y_train, y_val, save_path, model_type='SVC'):
+# Data utilities
+def datapath(conf, filename):
+    return Path(conf['folder']) / filename
+
+
+def loaddata(path, filename):
+    return np.load(path / filename, allow_pickle=True)
+
+
+def samplewise_mean_X(X):
+    for i in range(len(X)):
+        X[i] -= np.mean(X[i], keepdims=True)
+        X[i] /= (np.std(X[i], keepdims=True) + 1.0)  # Kind of Compressor effect
+
+
+def data_set_load_folder(dataroot, prefix=''):
+    return loaddata(dataroot, '{}X_train.npy'.format(prefix)), \
+           loaddata(dataroot, '{}y_train.npy'.format(prefix)), \
+           loaddata(dataroot, '{}idx_train.npy'.format(prefix)), \
+           loaddata(dataroot, '{}plain_y_train.npy'.format(prefix))
+
+
+def data_set_limit_apply(X, y, limit, lcolumn):
+    """
+    For well known sound possible using limited data set
+    :param X:
+    :param y:
+    :param limit:
+    :param lcolumn:
+    :return:
+    """
+    df = pd.DataFrame(data=X)
+    df[lcolumn] = y
+    # print(df.head())
+
+    if limit > 0:
+        df = df.groupby(lcolumn).apply(lambda x: x[:limit])
+    counter = df[lcolumn].value_counts(normalize=False)
+    # print(counter)
+    y = df[lcolumn].values
+    X = df.drop([lcolumn], axis=1).values
+
+    return X, y, counter
+
+
+def get_class_id(sample, conf):
+
+    # class_id = {11: 'custom_fid'}
+    # class_id = {5: 'human_non_speech'}
+    class_id = {2: 'domestic'}
+
+    return class_id
+
+
+def data_set_load_cnn_data(load_path, test_size=0.2, random_state=42, limit=0):
+
+    DATAROOT = Path('./../../GetAlertCNN/GetAlertCNN')
+    DATAROOT_EXTRA = ['donateacry-corpus', 'getalert', 'AudioTagging',
+                      'FreesoundScream', 'pond5', 'UrbanSound8K',
+                      'freesound-audio-tagging-2019']
+    # FOLDER = 'X3M16_01052019'
+    # FOLDER = 'X3M16'
+    FOLDER = 'XGBoost3'
+    FNAME_COLUMN = 'filename'
+    LNAME_COLUMN = 'category'
+
+    if os.path.exists(str(DATAROOT / FOLDER / 'conf.npy')):
+        conf = np.load(DATAROOT / FOLDER / 'conf.npy').tolist()
+        conf['learning_rate'] = 0.0001
+        conf['samples'] = conf['sampling_rate'] * conf['duration']
+        conf['dims'] = (conf['n_mels'], 1 + int(np.floor(conf['samples'] / conf['hop_length'])), 1)
+        conf['normalize'] = 'featurewise'
+        conf['folder'] = FOLDER
+        print('from file')
+    else:
+        raise FileExistsError('conf.npy')
+
+    if os.path.exists('../output/dataset/{}_X_train.npy'.format(FOLDER)):
+        X_train, y_train, idx_train, plain_y_train = data_set_load_folder(Path('../output/dataset/'),
+                                                                          prefix=FOLDER + '_')
+        print("will be used already prepared data set for", FOLDER)
+        X_test = None
+        i2c = np.load(os.path.join(load_path, 'to_labels.npy')).tolist()
+        print(X_train.shape)
+        print(y_train.shape)
+
+        # Next step
+        # Add exclude file to train with class
+        # folder = os.path.normpath("c:/Users/User/Downloads/Skype/_false_positive")
+        folder = os.path.normpath("../cnn_predicted_cry")
+        # file = "0e55f482-b262-4bee-aeca-76a3f63dd626_20190516133957379_30676_4.001.wav"
+        # files = [os.path.join(folder, file)]
+        files = [i for i in os.listdir(folder)]
+        X_train_extra = []
+        y_train_extra = []
+        print('Adding from:', folder)
+
+        for i, file_to_filter in enumerate(files):
+            x = read_audio(conf, pathname=os.path.join(folder, file_to_filter))
+            print(file_to_filter)
+            data = get_mfcc_feature(x)
+            class_id = get_class_id(data, conf)
+
+            if list(class_id.keys())[0] not in i2c.keys():
+                i2c.update(class_id)
+                print(i2c)
+                np.save(os.path.join(load_path, '{}_to_labels.npy'.format(FOLDER)), i2c, fix_imports=False)
+
+            X_train_extra.append(data)
+            y_train_extra.append(list(class_id.keys())[0])
+            # if i == 4:
+            #     break
+
+        X_train = np.concatenate((X_train, np.array(X_train_extra)), axis=0)
+        y_train = np.concatenate((y_train, np.array(y_train_extra)), axis=0)
+
+        print('after adding filter sample', X_train.shape, y_train.shape)
+
+    else:
+        for conf in [conf]:
+            print('== Attempt [%s] ==' % conf['folder'])
+
+            # a. Load all dataset -> all_(X4|y|idx)_train, (X4|idx)_test
+            # to_categorical(loaddata(conf, 'y_train.npy'))
+            all_X_train, all_y_train, all_idx_train, plain_y_train = data_set_load_folder(DATAROOT / conf['folder'])
+
+            print(np.unique(all_y_train))
+            # Concatenate
+            print(all_X_train.shape)
+
+            X_test, idx_test = loaddata(DATAROOT / (conf['folder']), 'X_test.npy'), \
+                               loaddata(DATAROOT / (conf['folder']), 'idx_test.npy')
+
+            label2int = loaddata(DATAROOT / (conf['folder']), 'i2label.npy').tolist()
+            labels = loaddata(DATAROOT / (conf['folder']), 'labels.npy')
+
+            for dataroot_extra in DATAROOT_EXTRA:
+                print('== add extra [%s] ==' % dataroot_extra)
+                dataroot_extra_path = Path('.') / '..\..' / dataroot_extra
+                # print(os.path.abspath(str(dataroot_extra_path / conf['folder'] / 'X_train.npy')))
+
+                if os.path.exists(os.path.abspath(str(dataroot_extra_path / conf['folder'] / 'X_train.npy'))):
+                    all_X_train_extra, all_y_train_extra,\
+                    all_idx_train_extra, plain_y_train_extra = data_set_load_folder(dataroot_extra_path / conf['folder'])
+                    print(np.unique(all_y_train_extra))
+
+                    # Concatenate
+                    print(all_X_train_extra.shape)
+                    all_X_train = np.concatenate((all_X_train, all_X_train_extra), axis=0)
+                    all_y_train = np.concatenate((all_y_train, all_y_train_extra), axis=0)
+                    max = np.amax(all_idx_train)
+                    all_idx_train_extra = np.array([i + max + 1 for i in all_idx_train_extra])
+                    all_idx_train = np.concatenate((all_idx_train, all_idx_train_extra), axis=0)
+                    plain_y_train = np.concatenate((plain_y_train, plain_y_train_extra), axis=0)
+
+                if os.path.exists(os.path.abspath(str(dataroot_extra_path / conf['folder'] / 'X_test.npy'))):
+                    X_test_extra, idx_test_extra = np.load(dataroot_extra_path / conf['folder'] / 'X_test.npy',
+                                                           allow_pickle=True), \
+                                                   np.load(dataroot_extra_path / conf['folder'] / 'idx_test.npy',
+                                                           allow_pickle=True)
+
+                    X_test = np.concatenate((X_test, X_test_extra), axis=0)
+                    max = np.amax(idx_test)
+                    idx_test_extra = np.array([i + max + 1 for i in idx_test_extra])
+                    idx_test = np.concatenate((idx_test, idx_test_extra), axis=0)
+
+                if os.path.exists(os.path.abspath(str(dataroot_extra_path / conf['folder'] / 'labels.npy'))):
+                    label2int_extra = np.load(dataroot_extra_path / conf['folder'] / 'i2label.npy',
+                                              allow_pickle=True).tolist()
+                    print(label2int_extra)
+                    label2int.update(label2int_extra)
+                    labels_extra = np.load(dataroot_extra_path / conf['folder'] / 'labels.npy', allow_pickle=True)
+                    labels = np.concatenate((labels, labels_extra), axis=0)
+
+            num_classes = len(labels)
+
+            # Next line for 2D conv only
+            # all_y_train = to_categorical(all_y_train)
+
+            # a. Normalize samplewise if requested
+            if conf['normalize'] == 'samplewise':
+                print(' normalize samplewise')
+                samplewise_mean_X(all_X_train)
+                samplewise_mean_X(X_test)
+
+            all_X_train = np.squeeze(all_X_train, axis=2)
+            X_test = np.squeeze(X_test, axis=2)
+
+            # limit
+            all_X_train, all_y_train, counter = data_set_limit_apply(all_X_train, all_y_train, limit, LNAME_COLUMN)
+            print(counter)
+
+            X_train, y_train, idx_train = all_X_train, all_y_train, all_idx_train
+            print('Filtered samples on blacklist, now trainset has %d samples' % len(idx_train))
+
+            i2c = {}
+            for c in label2int.keys():
+                i2c[label2int[c]] = c
+
+            np.save(os.path.join(load_path, '{}_to_labels.npy'.format(FOLDER)), i2c, fix_imports=False)
+            np.save(os.path.join(load_path, '{}_X_train.npy'.format(FOLDER)), X_train, fix_imports=False)
+            np.save(os.path.join(load_path, '{}_y_train.npy'.format(FOLDER)), y_train, fix_imports=False)
+            np.save(os.path.join(load_path, '{}_idx_train.npy'.format(FOLDER)), idx_train, fix_imports=False)
+            np.save(os.path.join(load_path, '{}_plain_y_train.npy'.format(FOLDER)), plain_y_train, fix_imports=False)
+
+    return X_train, X_test, y_train, None, i2c  # y_test
+
+
+def model_train(X_train, X_val, y_train, y_val, i2c, save_path, model_type='SVC', class_balance=False):
 
     print("Model type: ", model_type)
 
@@ -81,8 +299,8 @@ def model_train(X_train, X_val, y_train, y_val, save_path, model_type='SVC'):
         # print(accuracy_score(clf.predict(X_test), y_test))
 
         # Define the paramter grid for C from 0.001 to 10, gamma from 0.001 to 10
-        C_grid = [1, 4, 6, 8, 10]
-        gamma_grid = [0.001, 0.005, 0.01]
+        C_grid = [4, 6, 8, 10]
+        gamma_grid = [0.005]  # [0.001, 0.005, 0.01]
         param_grid = {'C': C_grid, 'gamma': gamma_grid}
 
         grid = GridSearchCV(SVC(kernel='rbf', probability=True, gamma='auto'),
@@ -111,23 +329,133 @@ def model_train(X_train, X_val, y_train, y_val, save_path, model_type='SVC'):
         clf = SVC(kernel='rbf', C=parameters['C'], gamma=parameters['gamma'], probability=True)
 
     else:
-        # XGBoost from https://www.kaggle.com/amlanpraharaj/xgb-using-mfcc-opanichev-s-features-lb-0-811
-        clf = XGBClassifier(max_depth=5,
-                            learning_rate=0.05,
-                            n_estimators=3000,
-                            n_jobs=-1,
-                            random_state=0,
-                            reg_alpha=0.2,
-                            colsample_bylevel=0.9,
-                            colsample_bytree=0.9)
 
-        clf.fit(X_train, y_train)
-        print(accuracy_score(clf.predict(X_val), y_val))
+        labels = [c[1] for c in i2c.items()]
+        # print('labels', labels)
+        print_class_balance('Current fold category distribution', y_train, labels)
+        _X_train, X_val, _y_train, y_val = train_test_split(X_train,
+                                                            y_train,
+                                                            test_size=0.3,
+                                                            random_state=42,
+                                                            shuffle=True)
+
+        if class_balance:
+            print_class_balance('Current fold category distribution', _y_train, labels)
+            _X_train, _y_train = balance_class_by_over_sampling(_X_train, _y_train)
+            print_class_balance('after balanced', _y_train, labels)
+
+        # https://www.kaggle.com/saxinou/imbalanced-data-xgboost-tunning
+        # max_depth = 5 : This should be between 3-10. I’ve started with 5 but you can choose
+        #   a different number as well. 4-6 can be good starting points.
+        # min_child_weight = 1 : A smaller value is chosen because it is a highly imbalanced class problem
+        #   and leaf nodes can have smaller size groups.
+        # gamma = 0 : A smaller value like 0.1-0.2 can also be chosen for starting. This will anyways be tuned later.
+        # subsample, colsample_bytree = 0.8 : This is a commonly used used start value.
+        #   Typical values range between 0.5-0.9.
+        # scale_pos_weight = 1: Because of high class imbalance.
+
+        clf = XGBClassifier(learning_rate=0.015,
+                            n_estimators=1000,
+                            max_depth=5,
+                            min_child_weight=1,  # 1,
+                            gamma=0,
+                            subsample=0.7,
+                            colsample_bytree=0.9,
+                            colsample_bylevel=0.9,
+                            reg_alpha=0.2,
+                            nthread=4,
+                            scale_pos_weight=1,
+                            seed=27,
+                            objective='multi:softmax',
+                            num_class=len(labels),
+                            n_jobs=-1)
+
+        # XGBoost from https://www.kaggle.com/amlanpraharaj/xgb-using-mfcc-opanichev-s-features-lb-0-811
+        # clf = XGBClassifier(max_depth=5,
+        #                     learning_rate=0.05,
+        #                     n_estimators=3000,
+        #                     n_jobs=-1,
+        #                     random_state=0,
+        #                     reg_alpha=0.2,
+        #                     colsample_bylevel=0.9,
+        #                     colsample_bytree=0.9)
+
+        print(_X_train.shape)
+        print(_y_train.shape)
+
+        clf.fit(_X_train, _y_train, verbose=False)
+
+        # clf.fit(X_train, y_train,
+        #         verbose=False,
+        #         early_stopping_rounds=2,
+        #         eval_set=[(X_val, y_val)])
+
+        # Performance sur le train
+        print('train', accuracy_score(clf.predict(_X_train), _y_train))
+
+        print(X_val.shape)
+        if y_val is not None and len(y_val) == X_val.shape[0]:
+            print('test X', X_val.shape)
+            print('test y', len(y_val))
+            print(accuracy_score(clf.predict(X_val), y_val))
+
+        # Step 2: Tune max_depth and min_child_weight
+        # param_test1 = {
+        #     'max_depth': range(3, 10, 2),
+        #     'min_child_weight': range(1, 6, 2)
+        # }
+        #
+        # param_test3 = {
+        #     'gamma': [i / 10.0 for i in range(0, 5)]
+        # }
+        #
+        # param_test4 = {
+        #     'subsample': [i / 10.0 for i in range(6, 10)],
+        #     'colsample_bytree': [i / 10.0 for i in range(6, 10)]
+        # }
+        #
+        # # On affine la recherche FOR Optimal parameter : {'colsample_bytree': 0.7, 'subsample': 0.9}
+        # param_test5 = {
+        #     'subsample': [i / 100.0 for i in range(65, 80, 5)],
+        #     'colsample_bytree': [i / 100.0 for i in range(85, 100, 5)]
+        # }
+        #
+        # param_test6 = {
+        #     'learning_rate': [i / 1000.0 for i in range(5, 20, 2)]
+        # }
+        #
+        # gsearch1 = GridSearchCV(estimator=XGBClassifier(learning_rate=0.015,
+        #                                                 n_estimators=1000,
+        #                                                 max_depth=9,
+        #                                                 min_child_weight=1,
+        #                                                 gamma=0,
+        #                                                 subsample=0.7,
+        #                                                 colsample_bytree=0.9,
+        #                                                 colsample_bylevel = 0.9,
+        #                                                 reg_alpha = 0.2,
+        #                                                 # objective='binary:logistic',
+        #                                                 nthread=4,
+        #                                                 scale_pos_weight=1,
+        #                                                 seed=27,
+        #                                                 n_jobs=-1),
+        #                         param_grid=param_test3,
+        #                         # scoring='roc_auc',
+        #                         scoring='accuracy',
+        #                         n_jobs=-1,
+        #                         iid=False,
+        #                         cv=5)
+        #
+        # gsearch1.fit(X_train, y_train)
+        # # print(gsearch1.grid_scores_)
+        # print(gsearch1.best_params_, gsearch1.best_score_)
+
+        # {'max_depth': 3, 'min_child_weight': 5}
 
     return clf
 
 
 def main():
+    local_dataset = False
     parser = argparse.ArgumentParser()
     parser.add_argument('--save_path',
                         default='{}/../{}output/model/'.format(
@@ -154,14 +482,26 @@ def main():
 
     i2c = np.load(os.path.join(load_path_label, 'to_labels.npy')).tolist()
 
-    X_train, X_test, y_train, y_test = data_set_load(test_size=0.2,
-                                                     random_state=10)
+    if local_dataset:
+        X_train, X_test, y_train, y_test = data_set_load(test_size=0.1,
+                                                         random_state=42)
+
+        print(X_train.shape)
+        print(y_train.shape)
+    else:
+        X_train, X_test, y_train, y_test, i2c = data_set_load_cnn_data(load_path=load_path,
+                                                                       test_size=0.1,
+                                                                       random_state=42,
+                                                                       limit=0)
+        # print(i2c)
+        X_pca = X_train
+        y_pca = y_train
+        # exit(0)
 
     X_val = X_test
     y_val = y_test
     X_test_pca = X_test
-
-    model_type = 'XGBoost'  #'SVC'
+    model_type = MODEL_TYPE
 
     # # Apply scaling for PCA
     if model_type == 'SVC':
@@ -180,35 +520,37 @@ def main():
 
         # Fit an SVM model
         X_train, X_val, y_train, y_val = train_test_split(X_pca, y_train,
-                                                          test_size=0.2,
-                                                          random_state=10,
+                                                          test_size=0.1,
+                                                          random_state=42,
                                                           shuffle=True)
 
     # model train model_type='SVC' / 'XGBoost'
-    clf = model_train(X_train, X_val, y_train, y_val, save_path, model_type=model_type)
+    clf = model_train(X_train, X_val, y_train, y_val, i2c, save_path, model_type=model_type)
 
-    if model_type != 'SVC':
+    if model_type != 'SVC' and local_dataset:
         X_pca = np.load(os.path.join(load_path, 'dataset.npy'))
         y_pca = np.load(os.path.join(load_path, 'labels.npy'))
 
     # final model training on entire data
-    clf.fit(X_pca, y_pca)
+    # print('final model training ...')
+    # clf.fit(X_pca, y_pca)
+    # print('train', accuracy_score(clf.predict(X_pca), y_pca))
 
-    y_pred = clf.predict(X_test_pca)
-
-    print(accuracy_score(y_pred, y_test))
+    if y_test is not None:
+        y_pred = clf.predict(X_test_pca)
+        print('test', accuracy_score(y_pred, y_test))
 
     # Save model
     with open(os.path.join(save_path, 'model.pkl'), 'wb') as fp:
         pickle.dump(clf, fp)
 
-    str_preds, _ = convert_to_labels(clf.predict_proba(X_test_pca), i2c, k=3)
-
-    # Write to outputs
-    subm = pd.DataFrame()
-    # subm[FNAME_COLUMN'] = y_test
-    subm[LNAME_COLUMN] = str_preds
-    subm.to_csv('submission.csv', index=False)
+    # str_preds, _ = convert_to_labels(clf.predict_proba(X_test_pca), i2c, k=1)
+    #
+    # # Write to outputs
+    # subm = pd.DataFrame()
+    # # subm[FNAME_COLUMN'] = y_test
+    # subm[LNAME_COLUMN] = str_preds
+    # subm.to_csv('submission.csv', index=False)
 
 
 if __name__ == '__main__':

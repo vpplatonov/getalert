@@ -13,6 +13,7 @@ import shutil
 
 from predict.audio_predict import get_file_name, model_init, audio_load, play_list_predict
 from predict.strategy import predict_category
+from pathlib import Path
 
 DESTINATION = 'predicted'
 isPCA = False
@@ -25,19 +26,29 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--load_path',
-                        # default='{}/../../baby_cry_detection/data'.format(os.path.dirname(os.path.abspath(__file__)))
-                        default='{}/../../freesound-audio_origin-tagging-2019'.format(os.path.dirname(os.path.abspath(__file__)))
+                        # default='c:/Users/User/Downloads/Skype'
+                        default='{}/../../getalert'.format(os.path.dirname(os.path.abspath(__file__)))
+                        # default='{}/../../donateacry-corpus'.format(os.path.dirname(os.path.abspath(__file__)))
+                        # default='{}/../../ESC-50'.format(os.path.dirname(os.path.abspath(__file__)))
+                        # default='{}/../../freesound-audio-tagging-2019'.format(os.path.dirname(os.path.abspath(__file__)))
+                        # default='{}/../../UrbanSound8K'.format(os.path.dirname(os.path.abspath(__file__)))
                         )
 
     # Arguments
     args = parser.parse_args()
     load_path = os.path.normpath(args.load_path)
+    print('load_path', load_path)
 
     # READ FILES IN SUB-FOLDERS of load_path and FEATURE ENGINEERING
 
     # list load_path sub-folders
-    regex = re.compile(r'^train_curated$')
-    read_from_csv = True
+    # regex = re.compile(r'^train_curated$')
+    # regex = re.compile(r'^_false.+')
+    regex = re.compile(r'^cnn_predicted_c.+')
+    # regex = re.compile(r'^audio$')
+    # regex = re.compile(r'^baby-cry-veri.+')
+    read_from_csv = False
+
     # regex = re.compile(r'^donateacry-ios.+')
     directory_list = [i for i in os.listdir(load_path) if regex.search(i)]
     # directory_list = [i for i in os.listdir(load_path)]
@@ -45,9 +56,17 @@ def main():
     # initialise empty array for labels
     # y = []
 
-    dest = os.path.join(os.path.dirname(os.path.abspath(__file__)), DESTINATION)
+    # dest = os.path.join(os.path.dirname(os.path.abspath(__file__)), DESTINATION)
+    dest = Path('./..') / DESTINATION
     # print(dest)
-    category_checking = 'Marimba_and_xylophone'
+    shutil.rmtree(str(dest))
+    os.makedirs(str(dest))
+    # category_checking = 'Marimba_and_xylophone'
+    # category_checking = 'crying_baby'
+    # category_checking = 'custom_fid'
+    category_checking = 'domestic'
+    # category_checking = 'human_non_speech'
+    print(category_checking)
 
     # iteration on sub-folders
 
@@ -74,6 +93,10 @@ def main():
             file_list = os.listdir(os.path.join(load_path, directory))
 
         # iteration on people_noise-ios-mix files in each sub-folder
+        i = j = 0
+        print(directory)
+        print('Total files', len(file_list))
+        counter = {}
         for audio_file in file_list:
             # file_reader = Reader(os.path.join(load_path, directory, audio_file))
             # iOS:
@@ -96,23 +119,29 @@ def main():
             pred = predict_category(predictions,
                                     category=category_checking,
                                     strategy='Once',
-                                    threshold=0.15)
+                                    threshold=0.35)
 
             # X4full = np.concatenate((X4full, avg_features), axis=0)
-            y.append((audio_file, pred))
-            print((audio_file, predictions))
-            # if pred == '1':
-            #     print((audio_file, pred))
-            #     shutil.copy(os.path.join(load_path, directory, audio_file), dest)
-            i += 1
-            if i > 100:
-                break
+            # y.append((audio_file, pred))
 
-        y_recall = [file for file, i in y if i == '1']
-        recall = len(y_recall) / len(y)
+            # print((audio_file, predictions))
+            if pred == '1':
+                # print((audio_file, predictions))
+                i += 1
+                # shutil.copy(os.path.join(load_path, directory, audio_file), str(dest))
+            else:
+                for p in predictions:
+                    if list(p.keys())[0] in list(counter.keys()):
+                        counter[list(p.keys())[0]] += 1
+                    else:
+                        counter[list(p.keys())[0]] = 1
 
-        print(directory)
+            j = j + 1
+
+        recall = float(i / j)
         print(recall)
+        print(counter)
+        print({key: counter[key] for key in sorted(counter, key=counter.__getitem__, reverse=True)[2::-1]})  # [2::-1]
 
 
 if __name__ == '__main__':

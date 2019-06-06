@@ -9,8 +9,9 @@ venv/
 ENV/
 
 # work files
-X4/
-X5*/
+XGBoost*/
+cnn_predicted_cry/
+X*/
 baby-cry-*/
 baby_cry_*/
 audio/

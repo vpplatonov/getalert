@@ -14,7 +14,7 @@ import pandas as pd
 import librosa
 
 from predict.feature_engineer import (
-    SAMPLE_RATE, get_mfcc_feature, convert_to_labels, NUM_PCA,
+    SAMPLE_RATE, get_mfcc_feature, convert_to_labels, NUM_PCA, MODEL_TYPE,
     PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE, extract_feature
 
 )
@@ -61,9 +61,11 @@ def model_init(load_path_model, load_path_label, isPCA=True):
         with open((os.path.join(load_path_model, 'model.pkl')), 'rb') as fp:
             model = pickle.load(fp)
 
-    i2c = np.load(os.path.join(load_path_label, 'to_labels.npy')).tolist()
+    i2c = np.load(os.path.join(load_path_label, 'XGBoost3_to_labels.npy')).tolist()
+    print(i2c)
 
     if isPCA:
+        # print(load_path_label)
         X_train = np.load(os.path.join(load_path_label, 'train_dataset.npy'))
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X_train)
@@ -75,7 +77,7 @@ def model_init(load_path_model, load_path_label, isPCA=True):
     return model, scaler, pca, i2c
 
 
-def audio_load(load_path_data, file_name):
+def audio_load(load_path_data, file_name, extra_features=False):
     play_list = list()
 
     logging.info('audio_load', file_name)
@@ -98,32 +100,40 @@ def audio_load(load_path_data, file_name):
         # data = data[offset:end]
 
         for offset in range(math.floor((len(data) - input_length) / SAMPLE_RATE) + 1):
+
             # Feature extraction
             chank_data = data[(offset * SAMPLE_RATE):int(offset * SAMPLE_RATE + input_length)]
             tmp = get_mfcc_feature(chank_data)
-            chank_data = [int((v*2**16.0)/2) for v in chank_data]
-            tmp2 = pd.Series(list(extract_feature(chank_data).values()))
-            # print(tmp2)
-            play_list.append(pd.concat([tmp, tmp2]))
+            if extra_features:
+                chank_data = [int((v*2**16.0)/2) for v in chank_data]
+                tmp2 = pd.Series(list(extract_feature(chank_data).values()))
+                play_list.append(pd.concat([tmp, tmp2]))
+            else:
+                play_list.append(tmp)
     else:
         if input_length > len(data):
             max_offset = input_length - len(data)
             offset = np.random.randint(max_offset)
         else:
             offset = 0
+
         data = np.pad(data, (offset, int(input_length - len(data) - offset)), "constant")
         # Feature extraction
         tmp = get_mfcc_feature(data)
+
         # convert to int for extract_feature()
-        data = [int((v*2**16.0)/2) for v in data]
-        tmp2 = pd.Series(list(extract_feature(data).values()))
-        # play_list.append(tmp)
-        play_list.append(pd.concat([tmp, tmp2]))
+        if extra_features:
+            data = [int((v*2**16.0)/2) for v in data]
+            tmp2 = pd.Series(list(extract_feature(data).values()))
+            # print(tmp2)
+            play_list.append(pd.concat([tmp, tmp2]))
+        else:
+            play_list.append(tmp)
 
     return play_list
 
 
-def play_list_predict(model, i2c, play_list_processed, k=1):
+def play_list_predict(model, i2c, play_list_processed, k=2):
     predictions = list()
 
     for signal in play_list_processed:
@@ -135,16 +145,25 @@ def play_list_predict(model, i2c, play_list_processed, k=1):
 
 
 def audio_prediction():
-    isPCA = False
-    save_path, load_path_data, load_path_model, load_path_label, file_name = get_file_name()
-    model, scaler, pca, i2c = model_init(load_path_model, load_path_label, isPCA=isPCA)
+    is_pca = MODEL_TYPE == 'SVC'
+    category = 'crying_baby'
+    load_model = 0  # from file / 1 from MongoDB
 
-    play_list_processed = audio_load(load_path_data, file_name)
-    if isPCA:
+    print('SAMPLE_RATE', SAMPLE_RATE)
+    print('SOUND_DURATION', SOUND_DURATION)
+    print('category', category)
+    print('model type', MODEL_TYPE)
+    print('load model from', 'file' if load_model == 0 else 'MongoDB')
+    save_path, load_path_data, load_path_model, load_path_label, file_name = get_file_name()
+
+    model, scaler, pca, i2c = model_init(load_path_model, load_path_label, isPCA=is_pca)
+
+    play_list_processed = audio_load(load_path_data, file_name, extra_features=False)
+    if is_pca:
         play_list_processed = scaler.transform(play_list_processed)
         play_list_processed = pca.transform(play_list_processed)
 
-    predictions = play_list_predict(model, i2c, play_list_processed)
+    predictions = play_list_predict(model, i2c, play_list_processed, k=1)
     print(predictions)
 
     # Voting strategy - must be changed to first success
@@ -152,7 +171,7 @@ def audio_prediction():
     #     Half - as min as half in first place
     #     Panic - even if selected category present in second place
     pred = predict_category(predictions,
-                            category='crying_baby',
+                            category=category,
                             strategy='Once')
 
     # Save prediction result
