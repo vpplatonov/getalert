@@ -10,18 +10,17 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import logging
 import pandas as pd
+from pathlib import Path
 
 import librosa
 
 from predict.feature_engineer import (
     SAMPLE_RATE, get_mfcc_feature, convert_to_labels, NUM_PCA, MODEL_TYPE,
-    PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE, extract_feature
+    PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE, extract_feature, SOUND_DURATION,
+    conf_load, FOLDER, audio_load
 
 )
 from predict.strategy import predict_category
-
-SOUND_DURATION = 5.0
-SOUND_RANGE = 1
 
 
 def get_file_name():
@@ -29,12 +28,12 @@ def get_file_name():
     parser.add_argument('--load_path_data',
                         default='{}/../audio_samples/'.format(os.path.dirname(os.path.abspath(__file__))))
     parser.add_argument('--load_path_model',
-                        default='{}/../{}output/model/'.format(
+                        default='{}/../{}output/'.format(
                             os.path.dirname(os.path.abspath(__file__)),
                             PATH_SUFFIX_SAVE
                         ))
     parser.add_argument('--load_path_label',
-                        default='{}/../{}output/dataset/'.format(
+                        default='{}/../{}output/'.format(
                             os.path.dirname(os.path.abspath(__file__)),
                             PATH_SUFFIX_LOAD
                         ))
@@ -49,8 +48,11 @@ def get_file_name():
     # Arguments
     args = parser.parse_args()
 
-    return os.path.normpath(args.save_path), os.path.normpath(args.load_path_data), os.path.normpath(args.load_path_model),\
-        os.path.normpath(args.load_path_label), args.file_name
+    return os.path.normpath(args.save_path), \
+        os.path.normpath(args.load_path_data), \
+        os.path.normpath(os.path.join(args.load_path_model, FOLDER)),\
+        os.path.normpath(args.load_path_label),\
+        args.file_name
 
 
 def model_init(load_path_model, load_path_label, isPCA=True):
@@ -61,12 +63,12 @@ def model_init(load_path_model, load_path_label, isPCA=True):
         with open((os.path.join(load_path_model, 'model.pkl')), 'rb') as fp:
             model = pickle.load(fp)
 
-    i2c = np.load(os.path.join(load_path_label, 'XGBoost3_to_labels.npy')).tolist()
+    i2c = np.load(os.path.join(load_path_label, FOLDER, 'to_labels.npy')).tolist()
     print(i2c)
 
     if isPCA:
         # print(load_path_label)
-        X_train = np.load(os.path.join(load_path_label, 'train_dataset.npy'))
+        X_train = np.load(os.path.join(load_path_label, 'dataset', 'train_dataset.npy'))
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X_train)
         # Apply PCA for dimension reduction
@@ -77,15 +79,13 @@ def model_init(load_path_model, load_path_label, isPCA=True):
     return model, scaler, pca, i2c
 
 
-def audio_load(load_path_data, file_name, extra_features=False):
+def audio_load_extra(pathname, extra_features=False):
     play_list = list()
-
-    logging.info('audio_load', file_name)
 
     # load prediction with different length
     # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data from Data Generator
     # Read and Resample the prediction
-    data, _ = librosa.core.load(os.path.join(load_path_data, file_name),
+    data, _ = librosa.core.load(pathname,
                                 sr=SAMPLE_RATE,
                                 # res_type='kaiser_fast'
                                 )
@@ -94,13 +94,8 @@ def audio_load(load_path_data, file_name, extra_features=False):
 
     # Random offset / Padding
     if len(data) > input_length:
-        # max_offset = len(data) - input_length
-        # offset = np.random.randint(max_offset)
-        # end = int(input_length + offset)
-        # data = data[offset:end]
 
         for offset in range(math.floor((len(data) - input_length) / SAMPLE_RATE) + 1):
-
             # Feature extraction
             chank_data = data[(offset * SAMPLE_RATE):int(offset * SAMPLE_RATE + input_length)]
             tmp = get_mfcc_feature(chank_data)
@@ -147,18 +142,22 @@ def play_list_predict(model, i2c, play_list_processed, k=2):
 def audio_prediction():
     is_pca = MODEL_TYPE == 'SVC'
     category = 'crying_baby'
-    load_model = 0  # from file / 1 from MongoDB
+    load_model = 0  # from file / 1 - from MongoDB
 
-    print('SAMPLE_RATE', SAMPLE_RATE)
-    print('SOUND_DURATION', SOUND_DURATION)
     print('category', category)
     print('model type', MODEL_TYPE)
     print('load model from', 'file' if load_model == 0 else 'MongoDB')
     save_path, load_path_data, load_path_model, load_path_label, file_name = get_file_name()
 
+    dataroot = Path('./../output')
+    conf = conf_load(dataroot, folder=FOLDER)
+    print(conf)
+
     model, scaler, pca, i2c = model_init(load_path_model, load_path_label, isPCA=is_pca)
 
-    play_list_processed = audio_load(load_path_data, file_name, extra_features=False)
+    play_list_processed = audio_load(conf, os.path.join(load_path_data, file_name), pydub_read=False)
+    # play_list_processed = audio_load_extra(os.path.join(load_path_data, file_name), extra_features=False)
+
     if is_pca:
         play_list_processed = scaler.transform(play_list_processed)
         play_list_processed = pca.transform(play_list_processed)
@@ -167,16 +166,14 @@ def audio_prediction():
     print(predictions)
 
     # Voting strategy - must be changed to first success
-    #     Full - all category the same in first place
-    #     Half - as min as half in first place
-    #     Panic - even if selected category present in second place
     pred = predict_category(predictions,
                             category=category,
-                            strategy='Once')
+                            strategy='Once',
+                            threshold=0.35)
 
     # Save prediction result
-    with open(os.path.join(save_path, 'prediction.txt'), 'w') as text_file:
-        text_file.write('{}'.format(pred))
+    # with open(os.path.join(save_path, 'prediction.txt'), 'w') as text_file:
+    #     text_file.write('{}'.format(pred))
 
     return pred
 

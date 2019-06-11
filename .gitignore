@@ -10,7 +10,7 @@ ENV/
 
 # work files
 XGBoost*/
-cnn_predicted_cry/
+cnn_predicted*/
 X*/
 baby-cry-*/
 baby_cry_*/

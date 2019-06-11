@@ -11,9 +11,10 @@ import pandas as pd
 
 import shutil
 
-from predict.audio_predict import get_file_name, model_init, audio_load, play_list_predict
+from predict.audio_predict import get_file_name, model_init, audio_load_extra, play_list_predict
 from predict.strategy import predict_category
 from pathlib import Path
+from predict.feature_engineer import conf_load, FOLDER, audio_load
 
 DESTINATION = 'predicted'
 isPCA = False
@@ -26,8 +27,8 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--load_path',
-                        # default='c:/Users/User/Downloads/Skype'
-                        default='{}/../../getalert'.format(os.path.dirname(os.path.abspath(__file__)))
+                        default='c:/Users/User/Downloads/Skype'
+                        # default='{}/../../getalert'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../donateacry-corpus'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../ESC-50'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../freesound-audio-tagging-2019'.format(os.path.dirname(os.path.abspath(__file__)))
@@ -39,12 +40,17 @@ def main():
     load_path = os.path.normpath(args.load_path)
     print('load_path', load_path)
 
+    dataroot = Path('./../output')
+    conf = conf_load(dataroot, folder=FOLDER)
+    print(conf)
+
     # READ FILES IN SUB-FOLDERS of load_path and FEATURE ENGINEERING
 
     # list load_path sub-folders
     # regex = re.compile(r'^train_curated$')
-    # regex = re.compile(r'^_false.+')
-    regex = re.compile(r'^cnn_predicted_c.+')
+    regex = re.compile(r'^_false.+')
+    # regex = re.compile(r'^cnn_predicted_1_c.+')
+    # regex = re.compile(r'^cnn_predicted_c.+')
     # regex = re.compile(r'^audio$')
     # regex = re.compile(r'^baby-cry-veri.+')
     read_from_csv = False
@@ -98,24 +104,17 @@ def main():
         print('Total files', len(file_list))
         counter = {}
         for audio_file in file_list:
-            # file_reader = Reader(os.path.join(load_path, directory, audio_file))
-            # iOS:
-            # 0D1AD73E-4C5E-45F3-85C4-9A3CB71E8856-1430742197-1.0-m-04-hu.caf
-            # app instance uuid (36 chars)-unix epoch timestamp-app version-gender-age-reason
-            # Android:
-            # 0c8f14a9-6999-485b-97a2-913c1cbf099c-1431028888092-1.7-m-26-sc.3gp
-            # The structure is the same with the exception that the unix epoch timestamp is in milliseconds
 
-            play_list_processed = audio_load(os.path.join(load_path, directory), audio_file)
+            # play_list_processed = audio_load_extra(os.path.join(load_path, directory), audio_file)
+            play_list_processed = audio_load(conf,
+                                             os.path.join(load_path, directory, audio_file),
+                                             pydub_read=False)
             if isPCA:
                 play_list_processed = scaler.transform(play_list_processed)
                 play_list_processed = pca.transform(play_list_processed)
             predictions = play_list_predict(model, i2c, play_list_processed, k=1)
 
             # Voting strategy - must be changed to first success
-            #     Full - all category the same in first place
-            #     Half - as min as half in first place
-            #     Panic - even if selected category present in second place
             pred = predict_category(predictions,
                                     category=category_checking,
                                     strategy='Once',

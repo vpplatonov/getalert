@@ -7,6 +7,9 @@ from tqdm import tqdm, tqdm_pandas
 import librosa
 import os
 import scipy
+import math
+from pydub import AudioSegment
+
 
 tqdm.pandas()
 
@@ -15,10 +18,32 @@ PATH_SUFFIX_LOAD = '../'
 # PATH_SUFFIX_SAVE = '../ESC-50-master/'
 PATH_SUFFIX_SAVE = '../'
 SAMPLE_RATE = 16000
+SOUND_DURATION = 3
 NUM_MFCC = 30
-FRAME = 512
+FRAME = int(SAMPLE_RATE / 1000 * 10)  # 10 ms
 NUM_PCA = 65
-MODEL_TYPE = 'XGBoost'  # 'SVC'  #
+MODEL_TYPE = 'XGBoost'  # 'SVC'
+FOLDER = 'XGBoost3'
+
+
+def conf_load(dataroot, folder=FOLDER):
+    # print(str(dataroot / folder / 'conf.npy'))
+    if os.path.exists(str(dataroot / folder / 'conf.npy')):
+        conf = np.load(dataroot / folder / 'conf.npy').tolist()
+    else:
+        conf = np.array([])
+        conf['sampling_rate'] = SAMPLE_RATE
+        conf['duration'] = SOUND_DURATION
+        conf['n_mfcc'] = NUM_MFCC
+        conf['hop_length'] = FRAME
+
+    conf['learning_rate'] = 0.0001
+    conf['samples'] = conf['sampling_rate'] * conf['duration']
+    conf['dims'] = (conf['n_mels'], 1 + int(np.floor(conf['samples'] / conf['hop_length'])), 1)
+    conf['normalize'] = 'featurewise'
+    conf['folder'] = FOLDER
+
+    return conf
 
 
 def convert_to_labels(preds, i2c, k=2):
@@ -58,18 +83,88 @@ def read_audio(conf, pathname):
     return y
 
 
-def get_mfcc_feature(data):
+def audio_load(conf, pathname, pydub_read=False):
+    play_list = list()
+
+    # load audio with different length
+    # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data from Data Generator
+    # Read and Resample the audio
+    if not pydub_read:
+        data, _ = librosa.core.load(str(pathname), sr=conf['sampling_rate']
+                                    # res_type='kaiser_fast'
+                                    )
+    else:
+        main_config = {
+            'sampling_rate': conf['sampling_rate'],
+            'channels': 1,
+            'sample_width': 2  # bit rate 16 bit
+        }
+
+        def file_to_array(wav_path, cnf):
+            # read wav file
+            inp_audio = AudioSegment.from_file(wav_path, "wav")
+            # set the sample rate
+            inp_audio = inp_audio.set_frame_rate(cnf['sampling_rate'])
+            # set the numbers of channels
+            inp_audio = inp_audio.set_channels(cnf['channels'])
+            # convert wav to 16bit
+            inp_audio = inp_audio.set_sample_width(cnf['sample_width'])
+            # convert to vector array and return
+            samples = inp_audio.get_array_of_samples()
+
+            return np.array([(s / 2 ** 16.0) * 2 for s in samples])
+            # return np.array(inp_audio.get_array_of_samples())
+
+        data = file_to_array(str(pathname), main_config)
+
+    input_length = conf['samples']
+
+    # Random offset / Padding
+    if len(data) > conf['samples']:
+
+        for offset in range(math.floor((len(data) - input_length) / conf['sampling_rate']) + 1):
+            # Feature extraction
+            tmp = get_mfcc_feature(data[(offset * conf['sampling_rate']):int(offset * conf['sampling_rate'] + input_length)],
+                                   conf)
+            play_list.append(tmp)
+    else:
+        if input_length > len(data):
+            max_offset = input_length - len(data)
+            offset = np.random.randint(max_offset)
+        else:
+            offset = 0
+        data = np.pad(data, (offset, int(input_length - len(data) - offset)), "constant")
+        # Feature extraction
+        tmp = get_mfcc_feature(data, conf)
+        play_list.append(tmp)
+
+    return play_list
+
+
+def get_mfcc_feature(data, conf=None):
     """ Generate mfcc features with mean and standard deviation
         all librosa features have hop_length=512 by default
     """
 
     try:
-        ft1 = librosa.feature.mfcc(data, sr=SAMPLE_RATE, n_mfcc=NUM_MFCC)
-        ft2 = librosa.feature.zero_crossing_rate(data, hop_length=FRAME)[0]
-        ft3 = librosa.feature.spectral_rolloff(data, sr=SAMPLE_RATE, hop_length=FRAME)[0]
-        ft4 = librosa.feature.spectral_centroid(data, sr=SAMPLE_RATE, hop_length=FRAME)[0]
-        ft5 = librosa.feature.spectral_contrast(data, sr=SAMPLE_RATE, n_bands=6, fmin=200.0)[0]
-        ft6 = librosa.feature.spectral_bandwidth(data, sr=SAMPLE_RATE, hop_length=FRAME)[0]
+        ft1 = librosa.feature.mfcc(data,
+                                   sr=SAMPLE_RATE if conf is None else conf['sampling_rate'],
+                                   n_mfcc=NUM_MFCC if conf is None else conf['n_mfcc'])
+        ft2 = librosa.feature.zero_crossing_rate(data,
+                                                 hop_length=FRAME if conf is None else conf['hop_length'])[0]
+        ft3 = librosa.feature.spectral_rolloff(data,
+                                               sr=SAMPLE_RATE if conf is None else conf['sampling_rate'],
+                                               hop_length=FRAME if conf is None else conf['hop_length'])[0]
+        ft4 = librosa.feature.spectral_centroid(data,
+                                                sr=SAMPLE_RATE if conf is None else conf['sampling_rate'],
+                                                hop_length=FRAME if conf is None else conf['hop_length'])[0]
+        ft5 = librosa.feature.spectral_contrast(data,
+                                                sr=SAMPLE_RATE if conf is None else conf['sampling_rate'],
+                                                n_bands=6,
+                                                fmin=200.0)[0]
+        ft6 = librosa.feature.spectral_bandwidth(data,
+                                                 sr=SAMPLE_RATE if conf is None else conf['sampling_rate'],
+                                                 hop_length=FRAME if conf is None else conf['hop_length'])[0]
         ft1_trunc = np.hstack((np.mean(ft1, axis=1),
                                np.std(ft1, axis=1),
                                skew(ft1, axis=1),
