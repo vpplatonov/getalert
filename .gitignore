@@ -11,6 +11,7 @@ ENV/
 # work files
 XGBoost*/
 cnn_predicted*/
+help-trained/
 X*/
 baby-cry-*/
 baby_cry_*/

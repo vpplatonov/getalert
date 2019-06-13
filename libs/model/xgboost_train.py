@@ -8,6 +8,14 @@ from sklearn.decomposition import PCA
 
 from pathlib import Path
 
+#trained parameters const
+MAX_DEPTH = 'max_depth'
+MIN_CHILD_WEIGHT = 'min_child_weight'
+GAMMA = 'gamma'
+SUBSAMPLE = 'subsample'
+COLSAMPLE_BYTREE = 'colsample_bytree'
+LEARNING_RATE = 'learning_rate'
+
 
 def get_class_distribution(y):
     # y_cls can be one of [OH label, index of class, class label name]
@@ -48,119 +56,68 @@ def print_class_balance(title, y, labels):
         print(' 0 sample classes:', zeroclasses)
 
 
-def model_train(X_train, X_val, y_train, y_val, save_path):
-    # https://www.kaggle.com/saxinou/imbalanced-data-xgboost-tunning
-    # max_depth = 5 : This should be between 3-10. I’ve started with 5 but you can choose
-    #   a different number as well. 4-6 can be good starting points.
-    # min_child_weight = 1 : A smaller value is chosen because it is a highly imbalanced class problem
-    #   and leaf nodes can have smaller size groups.
-    # gamma = 0 : A smaller value like 0.1-0.2 can also be chosen for starting. This will anyways be tuned later.
-    # subsample, colsample_bytree = 0.8 : This is a commonly used used start value.
-    #   Typical values range between 0.5-0.9.
-    # scale_pos_weight = 1: Because of high class imbalance.
-
-    clf = XGBClassifier(learning_rate=0.015,
-                        n_estimators=1000,
-                        max_depth=9,  # 5,
-                        min_child_weight=1,  # 1,
-                        gamma=0,
-                        subsample=0.7,
-                        colsample_bytree=0.9,
-                        colsample_bylevel=0.9,
-                        reg_alpha=0.2,
-                        nthread=4,
-                        scale_pos_weight=1,
-                        seed=27,
-                        n_jobs=-1)
-
-    # XGBoost from https://www.kaggle.com/amlanpraharaj/xgb-using-mfcc-opanichev-s-features-lb-0-811
-    # clf = XGBClassifier(max_depth=5,
-    #                     learning_rate=0.05,
-    #                     n_estimators=3000,
-    #                     n_jobs=-1,
-    #                     random_state=0,
-    #                     reg_alpha=0.2,
-    #                     colsample_bylevel=0.9,
-    #                     colsample_bytree=0.9)
-
-    print(X_train.shape)
-    print(y_train.shape)
-
-    clf.fit(X_train, y_train, verbose=False)
-
-    # clf.fit(X_train, y_train,
-    #         verbose=False,
-    #         early_stopping_rounds=2,
-    #         eval_set=[(X_val, y_val)])
-
-    # Performance sur le train
-    print('train', accuracy_score(clf.predict(X_train), y_train))
-
-    print(X_val.shape)
-    if y_val is not None and len(y_val) == X_val.shape[0]:
-        print('test X', X_val.shape)
-        print('test y', len(y_val))
-        print(accuracy_score(clf.predict(X_val), y_val))
-
+def xgboost_grid_search(X_train, y_train, base_params):
     # Step 2: Tune max_depth and min_child_weight
-    # param_test1 = {
-    #     'max_depth': range(3, 10, 2),
-    #     'min_child_weight': range(1, 6, 2)
-    # }
-    #
-    # param_test3 = {
-    #     'gamma': [i / 10.0 for i in range(0, 5)]
-    # }
-    #
-    # param_test4 = {
-    #     'subsample': [i / 10.0 for i in range(6, 10)],
-    #     'colsample_bytree': [i / 10.0 for i in range(6, 10)]
-    # }
-    #
-    # # On affine la recherche FOR Optimal parameter : {'colsample_bytree': 0.7, 'subsample': 0.9}
-    # param_test5 = {
-    #     'subsample': [i / 100.0 for i in range(65, 80, 5)],
-    #     'colsample_bytree': [i / 100.0 for i in range(85, 100, 5)]
-    # }
-    #
-    # param_test6 = {
-    #     'learning_rate': [i / 1000.0 for i in range(5, 20, 2)]
-    # }
-    #
-    # gsearch1 = GridSearchCV(estimator=XGBClassifier(learning_rate=0.015,
-    #                                                 n_estimators=1000,
-    #                                                 max_depth=9,
-    #                                                 min_child_weight=1,
-    #                                                 gamma=0,
-    #                                                 subsample=0.7,
-    #                                                 colsample_bytree=0.9,
-    #                                                 colsample_bylevel = 0.9,
-    #                                                 reg_alpha = 0.2,
-    #                                                 # objective='binary:logistic',
-    #                                                 nthread=4,
-    #                                                 scale_pos_weight=1,
-    #                                                 seed=27,
-    #                                                 n_jobs=-1),
-    #                         param_grid=param_test3,
-    #                         # scoring='roc_auc',
-    #                         scoring='accuracy',
-    #                         n_jobs=-1,
-    #                         iid=False,
-    #                         cv=5)
-    #
-    # gsearch1.fit(X_train, y_train)
-    # # print(gsearch1.grid_scores_)
-    # print(gsearch1.best_params_, gsearch1.best_score_)
+    params_test = [{
+        MAX_DEPTH: range(3, 10, 2),
+        MIN_CHILD_WEIGHT: range(1, 6, 2)
+    },
+        {
+            GAMMA: [i / 10.0 for i in range(0, 5)]
+        },
+        {
+            SUBSAMPLE: [i / 10.0 for i in range(6, 10)],
+            COLSAMPLE_BYTREE: [i / 10.0 for i in range(6, 10)]
+        },
+        {
+            SUBSAMPLE: [i / 100.0 for i in range(65, 80, 5)],
+            COLSAMPLE_BYTREE: [i / 100.0 for i in range(85, 100, 5)]
+        },
+        {
+            LEARNING_RATE: [i / 1000.0 for i in range(5, 20, 2)]
+        }
+    ]
 
+    params_trained = {}
+    step = 5
 
-if __name__ == '__main__':
-    pass
-    # _Xtrain, _ytrain, y_train, y_test = data_set_load(test_size=0.1,
-    #                                                   random_state=42)
-    #
-    # labels = _ytrain.unique()
-    #
-    # # Balance distribution -> _Xtrain|_ytrain (overwritten)
-    # print_class_balance('Current fold category distribution', _ytrain, labels)
-    # _Xtrain, _ytrain = balance_class_by_over_sampling(_Xtrain, _ytrain)
-    # print_class_balance('after balanced', _ytrain, labels)
+    def get_param_value(param):
+        return base_params[param] if param not in trained_keys else params_trained[param]
+
+    for param_test in params_test:
+
+        trained_keys = params_trained.keys()
+        if SUBSAMPLE in param_test.keys() and SUBSAMPLE in trained_keys:
+            param_test[SUBSAMPLE] = [i / 100.0 for i in range(int(params_trained[SUBSAMPLE] * 100) - step,
+                                                              int(params_trained[SUBSAMPLE] * 100) + step * 2,
+                                                              step)]
+            param_test[COLSAMPLE_BYTREE] = [i / 100.0 for i in range(int(params_trained[COLSAMPLE_BYTREE] * 100) - step,
+                                                                     int(params_trained[COLSAMPLE_BYTREE] * 100) + step * 2,
+                                                                     step)]
+
+        gsearch1 = GridSearchCV(estimator=XGBClassifier(learning_rate=get_param_value(LEARNING_RATE),
+                                                        n_estimators=1000,
+                                                        max_depth=get_param_value(MAX_DEPTH),
+                                                        min_child_weight=get_param_value(MIN_CHILD_WEIGHT),
+                                                        gamma=get_param_value(GAMMA),
+                                                        subsample=get_param_value(SUBSAMPLE),
+                                                        colsample_bytree=get_param_value(COLSAMPLE_BYTREE),
+                                                        colsample_bylevel=0.9,
+                                                        reg_alpha=0.2,
+                                                        nthread=4,
+                                                        scale_pos_weight=1,
+                                                        objective='multi:softmax',
+                                                        seed=27),
+                                param_grid=param_test,
+                                # scoring='roc_auc',
+                                scoring='accuracy',
+                                n_jobs=-1,
+                                iid=False,
+                                cv=5)
+
+        gsearch1.fit(X_train, y_train)
+        # # print(gsearch1.grid_scores_)
+        print(gsearch1.best_params_, gsearch1.best_score_)
+        params_trained = {**params_trained, **gsearch1.best_params_}
+
+    return params_trained

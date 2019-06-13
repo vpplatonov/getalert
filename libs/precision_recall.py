@@ -27,8 +27,8 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--load_path',
-                        default='c:/Users/User/Downloads/Skype'
-                        # default='{}/../../getalert'.format(os.path.dirname(os.path.abspath(__file__)))
+                        # default='c:/Users/User/Downloads/Skype'
+                        default='{}/../../getalert'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../donateacry-corpus'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../ESC-50'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../freesound-audio-tagging-2019'.format(os.path.dirname(os.path.abspath(__file__)))
@@ -48,10 +48,11 @@ def main():
 
     # list load_path sub-folders
     # regex = re.compile(r'^train_curated$')
-    regex = re.compile(r'^_false.+')
+    # regex = re.compile(r'^_false.+')
     # regex = re.compile(r'^cnn_predicted_1_c.+')
     # regex = re.compile(r'^cnn_predicted_c.+')
     # regex = re.compile(r'^audio$')
+    regex = re.compile(r'^help-trained$')
     # regex = re.compile(r'^baby-cry-veri.+')
     read_from_csv = False
 

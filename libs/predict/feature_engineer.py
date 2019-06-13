@@ -23,7 +23,8 @@ NUM_MFCC = 30
 FRAME = int(SAMPLE_RATE / 1000 * 10)  # 10 ms
 NUM_PCA = 65
 MODEL_TYPE = 'XGBoost'  # 'SVC'
-FOLDER = 'XGBoost3'
+# FOLDER = 'XGBoost3'
+FOLDER = 'XGBoost1'
 
 
 def conf_load(dataroot, folder=FOLDER):

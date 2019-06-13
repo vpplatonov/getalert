@@ -4,11 +4,13 @@ import numpy as np
 import Path
 import os
 import pickle
+
+# next line for pickle.load()
 from xgboost import XGBClassifier, XGBRegressor
 import json
 
 DB_HOST = 'localhost'
-DB_POST = '27017'
+DB_PORT = '27017'
 DB_NAME = 'fid_filter'
 COLLECTION_MODEL = 'fid_model'
 FID_TEST = '1234-1234513456-234234-sdfg-4354'
@@ -104,7 +106,7 @@ def test_db():
 
 
 def get_db(db_name='local'):
-    myclient = pymongo.MongoClient(f"mongodb://{DB_HOST}:{DB_POST}/")
+    myclient = pymongo.MongoClient(f"mongodb://{DB_HOST}:{DB_PORT}/")
 
     return myclient[db_name]
 

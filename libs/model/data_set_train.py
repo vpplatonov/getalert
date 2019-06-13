@@ -22,7 +22,8 @@ from predict.feature_engineer import convert_to_labels, NUM_PCA, MODEL_TYPE, rea
     get_mfcc_feature, audio_load, conf_load, FOLDER
 from xgboost import XGBClassifier, XGBRegressor
 from pathlib import Path
-from .xgboost_train import balance_class_by_over_sampling, print_class_balance
+from .xgboost_train import balance_class_by_over_sampling, print_class_balance, xgboost_grid_search, \
+    MAX_DEPTH, MIN_CHILD_WEIGHT, GAMMA, SUBSAMPLE, COLSAMPLE_BYTREE, LEARNING_RATE
 
 from keras.utils import to_categorical
 
@@ -37,14 +38,6 @@ PATH_SUFFIX_LOAD = '../'
 # PATH_SUFFIX_LOAD = '../ESC-50-master/'
 # PATH_SUFFIX_SAVE = '../ESC-50-master/'
 PATH_SUFFIX_SAVE = '../'
-
-#trained parameters const
-MAX_DEPTH = 'max_depth'
-MIN_CHILD_WEIGHT = 'min_child_weight'
-GAMMA = 'gamma'
-SUBSAMPLE = 'subsample'
-COLSAMPLE_BYTREE = 'colsample_bytree'
-LEARNING_RATE = 'learning_rate'
 
 
 def data_set_load(test_size=0.2, random_state=42, isPCA=True):
@@ -158,7 +151,7 @@ def data_set_load_cnn_data(load_path, test_size=0.2, random_state=42, limit=0):
         # Next step
         # Add exclude file to train with class
         # folder = os.path.normpath("c:/Users/User/Downloads/Skype/_false_positive")
-        folder = os.path.normpath("../cnn_predicted_cry")
+        folder = os.path.normpath("../cnn_predicted_1_cry")
         # file = "0e55f482-b262-4bee-aeca-76a3f63dd626_20190516133957379_30676_4.001.wav"
         # files = [os.path.join(folder, file)]
         files = [i for i in os.listdir(folder)]
@@ -362,12 +355,12 @@ def model_train(X_train, X_val, y_train, y_val, i2c, save_path, model_type='SVC'
         #                     n_estimators=3000)
 
         base_params = {
-            MAX_DEPTH: 5,
-            MIN_CHILD_WEIGHT: 1,
-            GAMMA: 0.1,
+            MAX_DEPTH: 7,
+            MIN_CHILD_WEIGHT: 5,
+            GAMMA: 0.4,
             SUBSAMPLE: 0.7,
-            COLSAMPLE_BYTREE: 0.9,
-            LEARNING_RATE: 0.05
+            COLSAMPLE_BYTREE: 0.75,
+            LEARNING_RATE: 0.015
         }
 
         if os.path.exists(os.path.join(save_path, 'parameters.json')):
@@ -423,73 +416,6 @@ def model_train(X_train, X_val, y_train, y_val, i2c, save_path, model_type='SVC'
                 json.dump(params_trained, fp)
 
     return clf
-
-
-def xgboost_grid_search(X_train, y_train, base_params):
-    # Step 2: Tune max_depth and min_child_weight
-    params_test = [{
-        MAX_DEPTH: range(3, 10, 2),
-        MIN_CHILD_WEIGHT: range(1, 6, 2)
-    },
-        {
-            GAMMA: [i / 10.0 for i in range(0, 5)]
-        },
-        {
-            SUBSAMPLE: [i / 10.0 for i in range(6, 10)],
-            COLSAMPLE_BYTREE: [i / 10.0 for i in range(6, 10)]
-        },
-        {
-            SUBSAMPLE: [i / 100.0 for i in range(65, 80, 5)],
-            COLSAMPLE_BYTREE: [i / 100.0 for i in range(85, 100, 5)]
-        },
-        {
-            LEARNING_RATE: [i / 1000.0 for i in range(5, 20, 2)]
-        }
-    ]
-
-    params_trained = {}
-    step = 5
-
-    def get_param_value(param):
-        return base_params[param] if param not in trained_keys else params_trained[param]
-
-    for param_test in params_test:
-
-        trained_keys = params_trained.keys()
-        if SUBSAMPLE in param_test.keys() and SUBSAMPLE in trained_keys:
-            param_test[SUBSAMPLE] = [i / 100.0 for i in range(int(params_trained[SUBSAMPLE] * 100) - step,
-                                                              int(params_trained[SUBSAMPLE] * 100) + step * 2,
-                                                              step)]
-            param_test[COLSAMPLE_BYTREE] = [i / 100.0 for i in range(int(params_trained[COLSAMPLE_BYTREE] * 100) - step,
-                                                                     int(params_trained[COLSAMPLE_BYTREE] * 100) + step * 2,
-                                                                     step)]
-
-        gsearch1 = GridSearchCV(estimator=XGBClassifier(learning_rate=get_param_value(LEARNING_RATE),
-                                                        n_estimators=1000,
-                                                        max_depth=get_param_value(MAX_DEPTH),
-                                                        min_child_weight=get_param_value(MIN_CHILD_WEIGHT),
-                                                        gamma=get_param_value(GAMMA),
-                                                        subsample=get_param_value(SUBSAMPLE),
-                                                        colsample_bytree=get_param_value(COLSAMPLE_BYTREE),
-                                                        colsample_bylevel=0.9,
-                                                        reg_alpha=0.2,
-                                                        nthread=4,
-                                                        scale_pos_weight=1,
-                                                        objective='multi:softmax',
-                                                        seed=27),
-                                param_grid=param_test,
-                                # scoring='roc_auc',
-                                scoring='accuracy',
-                                n_jobs=-1,
-                                iid=False,
-                                cv=5)
-
-        gsearch1.fit(X_train, y_train)
-        # # print(gsearch1.grid_scores_)
-        print(gsearch1.best_params_, gsearch1.best_score_)
-        params_trained = {**params_trained, **gsearch1.best_params_}
-
-    return params_trained
 
 
 def main():
