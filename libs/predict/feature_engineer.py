@@ -67,7 +67,7 @@ def get_mfcc_data(name, path):
 
 
 def read_audio(conf, pathname):
-    y, sr = librosa.load(str(pathname), sr=conf['sampling_rate'])
+    y, sr = librosa.load(pathname, sr=conf['sampling_rate'])
     # trim silence
     if 0 < len(y):  # workaround: 0 length causes error
         y, _ = librosa.effects.trim(y)  # trim, top_db=default(60)
@@ -91,7 +91,7 @@ def audio_load(conf, pathname, pydub_read=False):
     # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data from Data Generator
     # Read and Resample the audio
     if not pydub_read:
-        data, _ = librosa.core.load(str(pathname), sr=conf['sampling_rate']
+        data, _ = librosa.core.load(pathname, sr=conf['sampling_rate']
                                     # res_type='kaiser_fast'
                                     )
     else:
@@ -116,7 +116,7 @@ def audio_load(conf, pathname, pydub_read=False):
             return np.array([(s / 2 ** 16.0) * 2 for s in samples])
             # return np.array(inp_audio.get_array_of_samples())
 
-        data = file_to_array(str(pathname), main_config)
+        data = file_to_array(pathname, main_config)
 
     input_length = conf['samples']
 
@@ -128,6 +128,8 @@ def audio_load(conf, pathname, pydub_read=False):
             tmp = get_mfcc_feature(data[(offset * conf['sampling_rate']):int(offset * conf['sampling_rate'] + input_length)],
                                    conf)
             play_list.append(tmp)
+
+
     else:
         if input_length > len(data):
             max_offset = input_length - len(data)

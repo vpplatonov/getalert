@@ -1,7 +1,7 @@
 import pymongo
 import datetime
 import numpy as np
-import Path
+from pathlib import Path
 import os
 import pickle
 
@@ -12,17 +12,17 @@ import json
 DB_HOST = 'localhost'
 DB_PORT = '27017'
 DB_NAME = 'fid_filter'
-COLLECTION_MODEL = 'fid_model'
-FID_TEST = '1234-1234513456-234234-sdfg-4354'
+COLLECTION_MODEL = 'feed_model'
+FEED_TEST = '1234-1234513456-234234-sdfg-4354'
 CONF_ROOT = 'XGBoost3'
-FID_MODEL = {'fid_id': FID_TEST,
-             'model_type': 'XGBoost',
-             'model': '',  # save here model.pkl
-             'labels': [],  # to_labels.npy
-             'parameters': {},  # save here conf.npy
-             'timestamp': datetime.datetime.strptime("2019-06-01T10:59:59.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
-             # 'timestamp': datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.000Z")
-             }
+FEED_MODEL = {'feed_id': FEED_TEST,
+              'model_type': 'XGBoost',
+              'model': '',  # save here model.pkl
+              'labels': [],  # to_labels.npy
+              'parameters': {},  # save here conf.npy
+              'timestamp': datetime.datetime.strptime("2019-06-01T10:59:59.000Z", "%Y-%m-%dT%H:%M:%S.000Z")
+              # 'timestamp': datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.000Z")
+              }
 
 DATAROOT = Path('.')
 
@@ -40,7 +40,7 @@ def db_create_fid_filter():
     # MongoDB 4.0
     # validator = {
     #     '$jsonSchema': {
-    #         'required': ['fid_id', 'parameters', 'timestamp'],
+    #         'required': ['feed_id', 'parameters', 'timestamp'],
     #         'properties': {
     #             'model': {
     #                'bsonType': "binData",
@@ -63,13 +63,23 @@ def db_create_fid_filter():
     }
     db.create_collection(COLLECTION_MODEL, **options)
     collection = db[COLLECTION_MODEL]
-    collection.create_index([('fid_id', pymongo.ASCENDING)], unique=True)
+    collection.create_index([('feed_id', pymongo.ASCENDING)], unique=True)
 
     return db
 
 
-def db_save_model(collection, model, parameters={}, fid_id=FID_TEST, model_type='XGBoost', labels=[]):
-    collection.insert_one({'fid_id': fid_id,
+def db_save_file_info(collection, feed_id, file_name, class_predicted, status=0, filter_class='domestic'):
+    collection.insert_one({'feed_id': feed_id,
+                           'filename': file_name,
+                           'class_predicted': class_predicted,
+                           'status': status,
+                           'filter_class': filter_class,
+                           'timestamp': datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                           })
+
+
+def db_save_model(collection, model, parameters={}, feed_id=FEED_TEST, model_type='XGBoost', labels=[]):
+    collection.insert_one({'feed_id': feed_id,
                            'model_type': model_type,
                            'model': model,  # save here model.pkl
                            'labels': labels,  # to_labels.npy
@@ -78,23 +88,24 @@ def db_save_model(collection, model, parameters={}, fid_id=FID_TEST, model_type=
                            })
 
 
-def db_update_model(collection, model, fid_id=FID_TEST):
+def db_update_model(collection, model, feed_id=FEED_TEST):
     collection.update_one(
-        {'fid_id': fid_id},
+        {'feed_id': feed_id},
         {'$set': {'model': model},
          '$currentDate': {'timestamp': {'$type': "timestamp"}},
-         '$setOnInsert': {'fid_id': fid_id}
+         '$setOnInsert': {'feed_id': feed_id}
          }
     )
 
 
-def db_load_model(collection, fid_id=FID_TEST):
-    cursor = collection.find_one({'fid_id': fid_id}, {"model": 1, "labels": 1, 'parameters': 1, "_id": 0})
+def db_load_model(collection, feed_id=FEED_TEST):
+    cursor = collection.find_one({'feed_id': feed_id}, {"model": 1, "labels": 1, 'parameters': 1, "_id": 0})
 
     model = cursor['model']
+    labels = json.loads(cursor['labels'])
     model = pickle.loads(model)
 
-    return model
+    return model, labels
 
 
 def test_db():
@@ -106,13 +117,13 @@ def test_db():
 
 
 def get_db(db_name='local'):
-    myclient = pymongo.MongoClient(f"mongodb://{DB_HOST}:{DB_PORT}/")
+    myclient = pymongo.MongoClient("mongodb://{}:{}/".format(DB_HOST, DB_PORT))
 
     return myclient[db_name]
 
 
-def save_model_to_db(model, fid_id):
-    conf = np.load(os.path.join(f'../../GetAlertCNN/GetAlertCNN/{CONF_ROOT}', 'conf.npy'))
+def save_model_to_db(model, feed_id):
+    conf = np.load(os.path.join('../../GetAlertCNN/GetAlertCNN/{}'.format(CONF_ROOT), 'conf.npy'))
     labels = np.load(os.path.join('../../output/dataset', 'to_labels.npy'))
     collection = get_db(db_name=DB_NAME)[COLLECTION_MODEL]
 
@@ -120,7 +131,7 @@ def save_model_to_db(model, fid_id):
     conf = json.dumps(conf.tolist())
 
     # FID ID for test
-    db_save_model(collection, model, labels=labels, parameters=conf, fid_id=fid_id)
+    db_save_model(collection, model, labels=labels, parameters=conf, feed_id=feed_id)
 
 
 def main():
@@ -130,7 +141,7 @@ def main():
 
     model = pickle.dumps(model)
 
-    save_model_to_db(model, fid_id=FID_TEST)
+    save_model_to_db(model, feed_id=FEED_TEST)
 
 
 if __name__ == '__main__':

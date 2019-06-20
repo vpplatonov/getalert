@@ -14,10 +14,10 @@ import shutil
 from predict.audio_predict import get_file_name, model_init, audio_load_extra, play_list_predict
 from predict.strategy import predict_category
 from pathlib import Path
-from predict.feature_engineer import conf_load, FOLDER, audio_load
+from predict.feature_engineer import conf_load, FOLDER, audio_load, MODEL_TYPE
 
 DESTINATION = 'predicted'
-isPCA = False
+isPCA = MODEL_TYPE == 'SVC'
 
 
 def main():
@@ -27,8 +27,8 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--load_path',
-                        # default='c:/Users/User/Downloads/Skype'
-                        default='{}/../../getalert'.format(os.path.dirname(os.path.abspath(__file__)))
+                        default='c:/Users/User/Downloads/Skype'
+                        # default='{}/../../getalert'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../donateacry-corpus'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../ESC-50'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../freesound-audio-tagging-2019'.format(os.path.dirname(os.path.abspath(__file__)))
@@ -48,11 +48,11 @@ def main():
 
     # list load_path sub-folders
     # regex = re.compile(r'^train_curated$')
-    # regex = re.compile(r'^_false.+')
+    regex = re.compile(r'^_false.+')
     # regex = re.compile(r'^cnn_predicted_1_c.+')
     # regex = re.compile(r'^cnn_predicted_c.+')
     # regex = re.compile(r'^audio$')
-    regex = re.compile(r'^help-trained$')
+    # regex = re.compile(r'^help-trained$')
     # regex = re.compile(r'^baby-cry-veri.+')
     read_from_csv = False
 
@@ -119,7 +119,7 @@ def main():
             pred = predict_category(predictions,
                                     category=category_checking,
                                     strategy='Once',
-                                    threshold=0.35)
+                                    threshold=0.55)
 
             # X4full = np.concatenate((X4full, avg_features), axis=0)
             # y.append((audio_file, pred))

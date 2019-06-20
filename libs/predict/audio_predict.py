@@ -14,6 +14,8 @@ from pathlib import Path
 
 import librosa
 
+from model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, DB_NAME, MIN_IO, aws_secret_access_key, aws_access_key_id
+from model.feed_model_store import db_save_file_info, FEED_TEST, get_db, db_load_model
 from predict.feature_engineer import (
     SAMPLE_RATE, get_mfcc_feature, convert_to_labels, NUM_PCA, MODEL_TYPE,
     PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE, extract_feature, SOUND_DURATION,
@@ -55,13 +57,17 @@ def get_file_name():
         args.file_name
 
 
-def model_init(load_path_model, load_path_label, isPCA=True):
-    # https://stackoverflow.com/questions/41146759/check-sklearn-version-before-loading-model-using-joblib
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", category=UserWarning)
+def model_init(load_path_model, load_path_label, isPCA=True, load_model_db=False):
+    if load_model_db:
+        collection = get_db(db_name=DB_NAME)[COLLECTION_FILE]
+        model, i2c = db_load_model(collection)
+    else:
+        # https://stackoverflow.com/questions/41146759/check-sklearn-version-before-loading-model-using-joblib
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=UserWarning)
 
-        with open((os.path.join(load_path_model, 'model.pkl')), 'rb') as fp:
-            model = pickle.load(fp)
+            with open((os.path.join(load_path_model, 'model.pkl')), 'rb') as fp:
+                model = pickle.load(fp)
 
     i2c = np.load(os.path.join(load_path_label, FOLDER, 'to_labels.npy')).tolist()
     print(i2c)
@@ -128,7 +134,7 @@ def audio_load_extra(pathname, extra_features=False):
     return play_list
 
 
-def play_list_predict(model, i2c, play_list_processed, k=2):
+def play_list_predict(model, i2c, play_list_processed, k=1):
     predictions = list()
 
     for signal in play_list_processed:

@@ -1,10 +1,13 @@
 # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data
 import numpy as np
 import pandas as pd
+import asyncio
+import botocore
+import aiobotocore
 
 import os
+import io
 import pickle
-import shutil
 
 import argparse
 import json
@@ -17,20 +20,16 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
 from sklearn.svm import SVC
-from model.data_set_load import LNAME_COLUMN
-from predict.feature_engineer import convert_to_labels, NUM_PCA, MODEL_TYPE, read_audio, \
-    get_mfcc_feature, audio_load, conf_load, FOLDER
-from xgboost import XGBClassifier, XGBRegressor
+from predict.feature_engineer import NUM_PCA, MODEL_TYPE, read_audio, \
+    get_mfcc_feature, conf_load, FOLDER, audio_load
+from xgboost import XGBClassifier
 from pathlib import Path
 from .xgboost_train import balance_class_by_over_sampling, print_class_balance, xgboost_grid_search, \
     MAX_DEPTH, MIN_CHILD_WEIGHT, GAMMA, SUBSAMPLE, COLSAMPLE_BYTREE, LEARNING_RATE
 
-from keras.utils import to_categorical
-
-from sklearn.metrics import mean_absolute_error
-from sklearn.metrics import roc_auc_score
-
-from sklearn.metrics import classification_report, confusion_matrix
+import boto3
+from model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, DB_NAME, MIN_IO, aws_secret_access_key, aws_access_key_id
+from model.feed_model_store import get_db, FEED_TEST
 
 tqdm.pandas()
 
@@ -122,12 +121,57 @@ def get_class_id(sample, conf):
 
     # class_id = {11: 'custom_fid'}
     # class_id = {5: 'human_non_speech'}
-    class_id = {2: 'domestic'}
+    class_ids = [{2: 'domestic'} for a in range(len(sample))]
 
-    return class_id
+    return class_ids
 
 
-def data_set_load_cnn_data(load_path, test_size=0.2, random_state=42, limit=0):
+def get_s3_files():
+    """
+    READ FROM Mongo DB file info
+    """
+    collection = get_db(db_name=DB_NAME)[COLLECTION_FILE]
+    query = {'feed_id': FEED_TEST,
+             'status': {'$in': [0, 1]},
+             'class_predicted': CLASS_PREDICTED}
+    selected_field = {'filename': 1, '_id': 0}
+    fp_sounds = collection.find(query, selected_field)
+    # print(fp_sounds)
+    # convert to list()
+    return fp_sounds
+
+
+async def get_s3_file(loop, filename):
+    """
+    Read from S3 bucket MIN IO filename from Mongo DB
+    :param s3_client:
+    :param filename:
+    :return:
+    """
+    file = filename['filename'].split('/')
+
+    session = aiobotocore.get_session(loop=loop)
+    async with session.create_client(
+        # The name of the service for which a client will be created.
+        service_name="s3",
+        endpoint_url=MIN_IO,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_access_key_id=aws_access_key_id
+    ) as s3_client:
+
+        try:
+            s3_data = await s3_client.get_object(
+                Bucket=file[0],
+                Key=file[1] + '/' + file[2]
+            )
+            body = await s3_data["Body"].read()
+            data = io.BytesIO(body)
+            return data
+        except:
+            return b''
+
+
+def data_set_load_cnn_data(load_path, test_size=0.2, random_state=42, limit=0, s3_load=True):
 
     DATAROOT = Path('./../../GetAlertCNN/GetAlertCNN')
     DATAROOT_EXTRA = ['donateacry-corpus', 'getalert', 'AudioTagging',
@@ -150,31 +194,37 @@ def data_set_load_cnn_data(load_path, test_size=0.2, random_state=42, limit=0):
 
         # Next step
         # Add exclude file to train with class
-        # folder = os.path.normpath("c:/Users/User/Downloads/Skype/_false_positive")
-        folder = os.path.normpath("../cnn_predicted_1_cry")
-        # file = "0e55f482-b262-4bee-aeca-76a3f63dd626_20190516133957379_30676_4.001.wav"
-        # files = [os.path.join(folder, file)]
-        files = [i for i in os.listdir(folder)]
-        X_train_extra = []
-        y_train_extra = []
-        print('Adding from:', folder)
+        if s3_load:
+            files = get_s3_files()
+            print("Add files from MongoDB")
+        else:
+            # folder = os.path.normpath("c:/Users/User/Downloads/Skype/_false_positive")
+            folder = os.path.normpath("../cnn_predicted_1_cry")
+            files = [i for i in os.listdir(folder)]
+            print('Adding from:', folder)
 
+        loop = asyncio.get_event_loop()
         for i, file_to_filter in enumerate(files):
-            x = read_audio(conf, pathname=os.path.join(folder, file_to_filter))
-            print(file_to_filter)
-            data = get_mfcc_feature(x)
-            class_id = get_class_id(data, conf)
+            if s3_load:
+                file = loop.run_until_complete(get_s3_file(loop, file_to_filter))
+                data = audio_load(conf, pathname=file, pydub_read=True)
+            else:
+                x = read_audio(conf, pathname=os.path.join(folder, file_to_filter))
+                xx = get_mfcc_feature(x)
+                data = [xx]
 
-            if list(class_id.keys())[0] not in i2c.keys():
-                i2c.update(class_id)
-                print(i2c)
-                np.save(os.path.join(load_path, FOLDER, 'to_labels.npy'), i2c, fix_imports=False)
+            class_ids = get_class_id(data, conf)
+            class_ids_keys = []
+            for class_id in class_ids:
+                class_id_keys = list(class_id.keys())[0]
+                class_ids_keys.append(class_id_keys)
+                if class_id_keys not in i2c.keys():
+                    print('New class', class_id)
+                    i2c.update(class_id)
+                    np.save(os.path.join(load_path, FOLDER, 'to_labels.npy'), i2c, fix_imports=False)
 
-            X_train_extra.append(data)
-            y_train_extra.append(list(class_id.keys())[0])
-
-        X_train = np.concatenate((X_train, np.array(X_train_extra)), axis=0)
-        y_train = np.concatenate((y_train, np.array(y_train_extra)), axis=0)
+            X_train = np.concatenate((X_train, np.array(data)), axis=0)
+            y_train = np.concatenate((y_train, np.array(class_ids_keys)), axis=0)
 
         print('after adding filter sample', X_train.shape, y_train.shape)
 
@@ -460,7 +510,7 @@ def main():
         # print(i2c)
         X_pca = X_train
         y_pca = y_train
-        # exit(0)
+        exit(0)
 
     X_val = X_test
     y_val = y_test
