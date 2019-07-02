@@ -2,7 +2,7 @@ import os
 import boto3
 import datetime
 
-from .feed_model_store import db_save_file_info, FEED_TEST, get_db  #, DB_NAME
+from model.feed_model_store import db_save_file_info, FEED_TEST, get_db  #, DB_NAME
 
 # COLLECTION_FILE = 'feed_files'
 COLLECTION_FILE = 'fp_sounds'
@@ -10,10 +10,8 @@ CLASS_PREDICTED = 'crying_baby'
 DB_NAME = 'local'
 MIN_IO = 'http://127.0.0.1:9000'
 MIN_IO_BUCKET = 'sound.detections'
-aws_secret_access_key = "Ph6QAx3lVTf06V+QKsVOGvVF4w6NcQJq6t4935jH"
-aws_access_key_id = "F485IRW4YZR2TG13T3BG"
-
-url_name = MIN_IO_BUCKET + '/' + FEED_TEST + '/' + '20190410141207529_48646_4.wav'
+aws_secret_access_key = "3qHnT7bUaSUIDIBn1bYgG9NZmDqoIThRmFPlqiNk"
+aws_access_key_id = "Y82N14S1Q7095ZBWU12L"
 
 
 def main():

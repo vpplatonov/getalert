@@ -11,11 +11,14 @@ from sklearn.decomposition import PCA
 import logging
 import pandas as pd
 from pathlib import Path
+import grpc
+import time
+import asyncio
 
 import librosa
 
-from model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, DB_NAME, MIN_IO, aws_secret_access_key, aws_access_key_id
-from model.feed_model_store import db_save_file_info, FEED_TEST, get_db, db_load_model
+from model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, MIN_IO, aws_secret_access_key, aws_access_key_id
+from model.feed_model_store import db_save_file_info, FEED_TEST, get_db, db_load_model, COLLECTION_MODEL, DB_NAME
 from predict.feature_engineer import (
     SAMPLE_RATE, get_mfcc_feature, convert_to_labels, NUM_PCA, MODEL_TYPE,
     PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE, extract_feature, SOUND_DURATION,
@@ -23,6 +26,7 @@ from predict.feature_engineer import (
 
 )
 from predict.strategy import predict_category
+from cnn_predict.utils import send_on_predict
 
 
 def get_file_name():
@@ -58,19 +62,24 @@ def get_file_name():
 
 
 def model_init(load_path_model, load_path_label, isPCA=True, load_model_db=False):
+
     if load_model_db:
-        collection = get_db(db_name=DB_NAME)[COLLECTION_FILE]
+        print('Model loaded from DB Name', DB_NAME, 'from collection', COLLECTION_MODEL)
+        collection = get_db(db_name=DB_NAME)[COLLECTION_MODEL]
         model, i2c = db_load_model(collection)
+        i2c = {int(ind): key for ind, key in i2c.items()}
+        print('Labels from DB', i2c)
     else:
         # https://stackoverflow.com/questions/41146759/check-sklearn-version-before-loading-model-using-joblib
+        print('load path', load_path_model)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
 
             with open((os.path.join(load_path_model, 'model.pkl')), 'rb') as fp:
                 model = pickle.load(fp)
 
-    i2c = np.load(os.path.join(load_path_label, FOLDER, 'to_labels.npy')).tolist()
-    print(i2c)
+        i2c = np.load(os.path.join(load_path_label, FOLDER, 'to_labels.npy')).tolist()
+        print(i2c)
 
     if isPCA:
         # print(load_path_label)
@@ -134,13 +143,26 @@ def audio_load_extra(pathname, extra_features=False):
     return play_list
 
 
-def play_list_predict(model, i2c, play_list_processed, k=1):
+def play_list_predict(model, i2c, play_list_processed, k=1, api=False):
     predictions = list()
+    if api:
+        loop = asyncio.get_event_loop()
 
     for signal in play_list_processed:
-        predict = model.predict_proba([signal])
+        print(signal.shape)
+        if api:
+            predict = loop.run_until_complete(send_on_predict(np.array([signal])))
+        else:
+            predict = model.predict_proba([signal])
+
+        print(predict)
+        exit(0)
+
         str_preds, idx = convert_to_labels(predict, i2c, k=k)
         predictions.append(dict(zip(str_preds[0].split(' '), predict[0][idx[0]])))
+
+    if api:
+        loop.close()
 
     return predictions
 
@@ -168,7 +190,7 @@ def audio_prediction():
         play_list_processed = scaler.transform(play_list_processed)
         play_list_processed = pca.transform(play_list_processed)
 
-    predictions = play_list_predict(model, i2c, play_list_processed, k=1)
+    predictions = play_list_predict(model, i2c, play_list_processed, k=1, api=True)
     print(predictions)
 
     # Voting strategy - must be changed to first success

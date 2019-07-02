@@ -23,7 +23,7 @@ isPCA = MODEL_TYPE == 'SVC'
 def main():
 
     save_path, load_path_data, load_path_model, load_path_label, file_name = get_file_name()
-    model, scaler, pca, i2c = model_init(load_path_model, load_path_label)
+    model, scaler, pca, i2c = model_init(load_path_model, load_path_label, load_model_db=False)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--load_path',
@@ -34,6 +34,11 @@ def main():
                         # default='{}/../../freesound-audio-tagging-2019'.format(os.path.dirname(os.path.abspath(__file__)))
                         # default='{}/../../UrbanSound8K'.format(os.path.dirname(os.path.abspath(__file__)))
                         )
+
+    parser.add_argument('--load_path_model',
+                        default='{}/../output/'.format(
+                            os.path.dirname(os.path.abspath(__file__))
+                        ))
 
     # Arguments
     args = parser.parse_args()
@@ -49,6 +54,7 @@ def main():
     # list load_path sub-folders
     # regex = re.compile(r'^train_curated$')
     regex = re.compile(r'^_false.+')
+    # regex = re.compile(r'^predicted$')
     # regex = re.compile(r'^cnn_predicted_1_c.+')
     # regex = re.compile(r'^cnn_predicted_c.+')
     # regex = re.compile(r'^audio$')
@@ -80,7 +86,6 @@ def main():
     for directory in directory_list:
         # initialise empty array for labels
         y = []
-        i = 0
 
         if read_from_csv:
             # For big amount of files use csv info for reduce file checking
@@ -109,7 +114,7 @@ def main():
             # play_list_processed = audio_load_extra(os.path.join(load_path, directory), audio_file)
             play_list_processed = audio_load(conf,
                                              os.path.join(load_path, directory, audio_file),
-                                             pydub_read=False)
+                                             pydub_read=True)
             if isPCA:
                 play_list_processed = scaler.transform(play_list_processed)
                 play_list_processed = pca.transform(play_list_processed)
@@ -119,12 +124,12 @@ def main():
             pred = predict_category(predictions,
                                     category=category_checking,
                                     strategy='Once',
-                                    threshold=0.55)
+                                    threshold=0.35)
 
             # X4full = np.concatenate((X4full, avg_features), axis=0)
             # y.append((audio_file, pred))
 
-            # print((audio_file, predictions))
+            print((audio_file, predictions))
             if pred == '1':
                 # print((audio_file, predictions))
                 i += 1
@@ -135,8 +140,10 @@ def main():
                         counter[list(p.keys())[0]] += 1
                     else:
                         counter[list(p.keys())[0]] = 1
-
             j = j + 1
+
+            # if j > 10:
+            #     break
 
         recall = float(i / j)
         print(recall)

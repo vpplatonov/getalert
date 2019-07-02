@@ -11,7 +11,7 @@ import json
 
 DB_HOST = 'localhost'
 DB_PORT = '27017'
-DB_NAME = 'fid_filter'
+DB_NAME = 'feed_filter'
 COLLECTION_MODEL = 'feed_model'
 FEED_TEST = '1234-1234513456-234234-sdfg-4354'
 CONF_ROOT = 'XGBoost3'
@@ -78,12 +78,13 @@ def db_save_file_info(collection, feed_id, file_name, class_predicted, status=0,
                            })
 
 
-def db_save_model(collection, model, parameters={}, feed_id=FEED_TEST, model_type='XGBoost', labels=[]):
+def db_save_model(collection, model, parameters={}, feed_id=FEED_TEST, model_type='XGBoost', labels=[], class_name='crying_baby'):
     collection.insert_one({'feed_id': feed_id,
                            'model_type': model_type,
                            'model': model,  # save here model.pkl
                            'labels': labels,  # to_labels.npy
-                           'parameters': parameters,  # save here conf.npy
+                           'parameters': parameters,  # save here conf.npy,
+                           'class': class_name,
                            'timestamp': datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S.000Z")
                            })
 
@@ -99,6 +100,7 @@ def db_update_model(collection, model, feed_id=FEED_TEST):
 
 
 def db_load_model(collection, feed_id=FEED_TEST):
+    print("feed Id", feed_id)
     cursor = collection.find_one({'feed_id': feed_id}, {"model": 1, "labels": 1, 'parameters': 1, "_id": 0})
 
     model = cursor['model']
@@ -117,12 +119,13 @@ def test_db():
 
 
 def get_db(db_name='local'):
+    print("mongodb://{}:{}/".format(DB_HOST, DB_PORT))
     myclient = pymongo.MongoClient("mongodb://{}:{}/".format(DB_HOST, DB_PORT))
 
     return myclient[db_name]
 
 
-def save_model_to_db(model, feed_id):
+def save_model_to_db(model, feed_id, class_name='crying_baby'):
     conf = np.load(os.path.join('../../GetAlertCNN/GetAlertCNN/{}'.format(CONF_ROOT), 'conf.npy'))
     labels = np.load(os.path.join('../../output/dataset', 'to_labels.npy'))
     collection = get_db(db_name=DB_NAME)[COLLECTION_MODEL]
@@ -131,7 +134,7 @@ def save_model_to_db(model, feed_id):
     conf = json.dumps(conf.tolist())
 
     # FID ID for test
-    db_save_model(collection, model, labels=labels, parameters=conf, feed_id=feed_id)
+    db_save_model(collection, model, labels=labels, parameters=conf, feed_id=feed_id, class_name=class_name)
 
 
 def main():
@@ -141,7 +144,7 @@ def main():
 
     model = pickle.dumps(model)
 
-    save_model_to_db(model, feed_id=FEED_TEST)
+    save_model_to_db(model, FEED_TEST, class_name='help')
 
 
 if __name__ == '__main__':

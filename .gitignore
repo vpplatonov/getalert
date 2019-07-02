@@ -12,6 +12,7 @@ ENV/
 XGBoost*/
 cnn_predicted*/
 help-trained/
+audio_samples/
 X*/
 baby-cry-*/
 baby_cry_*/

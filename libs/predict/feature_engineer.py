@@ -23,8 +23,8 @@ NUM_MFCC = 30
 FRAME = int(SAMPLE_RATE / 1000 * 10)  # 10 ms
 NUM_PCA = 65
 MODEL_TYPE = 'XGBoost'  # 'SVC'
-# FOLDER = 'XGBoost3'
-FOLDER = 'XGBoost1'
+FOLDER = 'XGBoost3'
+# FOLDER = 'XGBoost1'
 
 
 def conf_load(dataroot, folder=FOLDER):
@@ -84,9 +84,7 @@ def read_audio(conf, pathname):
     return y
 
 
-def audio_load(conf, pathname, pydub_read=False):
-    play_list = list()
-
+def get_samples(conf, pathname, pydub_read=False):
     # load audio with different length
     # https://www.kaggle.com/fizzbuzz/beginner-s-guide-to-audio-data from Data Generator
     # Read and Resample the audio
@@ -114,10 +112,14 @@ def audio_load(conf, pathname, pydub_read=False):
             samples = inp_audio.get_array_of_samples()
 
             return np.array([(s / 2 ** 16.0) * 2 for s in samples])
-            # return np.array(inp_audio.get_array_of_samples())
 
         data = file_to_array(pathname, main_config)
 
+    return data
+
+
+def get_play_list_data(conf, data):
+    play_list = list()
     input_length = conf['samples']
 
     # Random offset / Padding
@@ -129,7 +131,6 @@ def audio_load(conf, pathname, pydub_read=False):
                                    conf)
             play_list.append(tmp)
 
-
     else:
         if input_length > len(data):
             max_offset = input_length - len(data)
@@ -140,6 +141,14 @@ def audio_load(conf, pathname, pydub_read=False):
         # Feature extraction
         tmp = get_mfcc_feature(data, conf)
         play_list.append(tmp)
+
+    return play_list
+
+
+def audio_load(conf, pathname, pydub_read=False):
+
+    data = get_samples(conf, pathname, pydub_read=pydub_read)
+    play_list = get_play_list_data(conf, data)
 
     return play_list
 

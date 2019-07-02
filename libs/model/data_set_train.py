@@ -21,7 +21,7 @@ from sklearn.decomposition import PCA
 
 from sklearn.svm import SVC
 from predict.feature_engineer import NUM_PCA, MODEL_TYPE, read_audio, \
-    get_mfcc_feature, conf_load, FOLDER, audio_load
+    get_mfcc_feature, conf_load, FOLDER, audio_load, get_samples, get_play_list_data, SOUND_DURATION
 from xgboost import XGBClassifier
 from pathlib import Path
 from .xgboost_train import balance_class_by_over_sampling, print_class_balance, xgboost_grid_search, \
@@ -31,12 +31,18 @@ import boto3
 from model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, DB_NAME, MIN_IO, aws_secret_access_key, aws_access_key_id
 from model.feed_model_store import get_db, FEED_TEST
 
+from cnn_predict.utils import send_on_predict, millisec_to_value
+from cnn_predict.cry_prediction import label_wav
+
 tqdm.pandas()
 
 PATH_SUFFIX_LOAD = '../'
 # PATH_SUFFIX_LOAD = '../ESC-50-master/'
 # PATH_SUFFIX_SAVE = '../ESC-50-master/'
 PATH_SUFFIX_SAVE = '../'
+
+hots_port = 'localhost:8500'
+model_name = 'cry_model'
 
 
 def data_set_load(test_size=0.2, random_state=42, isPCA=True):
@@ -134,7 +140,7 @@ def get_s3_files():
     query = {'feed_id': FEED_TEST,
              'status': {'$in': [0, 1]},
              'class_predicted': CLASS_PREDICTED}
-    selected_field = {'filename': 1, '_id': 0}
+    selected_field = {'filename': 1, 'class_predicted': 1, '_id': 0}
     fp_sounds = collection.find(query, selected_field)
     # print(fp_sounds)
     # convert to list()
@@ -167,7 +173,8 @@ async def get_s3_file(loop, filename):
             body = await s3_data["Body"].read()
             data = io.BytesIO(body)
             return data
-        except:
+        except Exception as e:
+            print(e)
             return b''
 
 
@@ -182,6 +189,7 @@ def data_set_load_cnn_data(load_path, test_size=0.2, random_state=42, limit=0, s
     LNAME_COLUMN = 'category'
 
     conf = conf_load(DATAROOT, folder=FOLDER)
+    conf['audio_length'] = SOUND_DURATION
 
     if os.path.exists(os.path.join('../output/', FOLDER, 'X_train.npy')):
         X_train, y_train, idx_train, plain_y_train = data_set_load_folder(Path('../output') / FOLDER,
@@ -197,36 +205,72 @@ def data_set_load_cnn_data(load_path, test_size=0.2, random_state=42, limit=0, s
         if s3_load:
             files = get_s3_files()
             print("Add files from MongoDB")
+            loop = asyncio.get_event_loop()
         else:
             # folder = os.path.normpath("c:/Users/User/Downloads/Skype/_false_positive")
             folder = os.path.normpath("../cnn_predicted_1_cry")
             files = [i for i in os.listdir(folder)]
             print('Adding from:', folder)
 
-        loop = asyncio.get_event_loop()
         for i, file_to_filter in enumerate(files):
+            # print(file_to_filter)
             if s3_load:
                 file = loop.run_until_complete(get_s3_file(loop, file_to_filter))
-                data = audio_load(conf, pathname=file, pydub_read=True)
+
+                # FIXME: for test only purposes
+                # data = audio_load(conf, pathname, pydub_read=True)
+
+                samples = get_samples(conf, file, pydub_read=True)
+                # FIXED : CNN feature extraction
+                conf['i2c'] = i2c
+                time_ranges, predictions = label_wav(samples, hots_port, conf)
+                print(time_ranges, predictions, file_to_filter['filename'].split('/').pop())
+
+                # extract feature for XGBoost
+                xx = np.array([])
+                for i, pred in enumerate(predictions):
+                    # FIXME: check probability prediction - must be confident > 75%
+                    # because customer mistake
+                    # print(list(pred.keys())[0])
+                    if list(pred.keys())[0] == file_to_filter['class_predicted']:
+                        # FIXED: convert start:stop ms into array index
+                        start = millisec_to_value(time_ranges[i]['start'], conf)
+                        stop = millisec_to_value(time_ranges[i]['stop'], conf)
+                        chunk = samples[start:stop]
+
+                        # Feature extraction
+                        x = get_play_list_data(conf, chunk)
+                        if xx.shape[0] == 0:
+                            xx = np.array(x)
+                        else:
+                            np.concatenate((xx, np.array(x)), axis=0)
+
+                data = xx
+
             else:
                 x = read_audio(conf, pathname=os.path.join(folder, file_to_filter))
                 xx = get_mfcc_feature(x)
                 data = [xx]
 
-            class_ids = get_class_id(data, conf)
-            class_ids_keys = []
-            for class_id in class_ids:
-                class_id_keys = list(class_id.keys())[0]
-                class_ids_keys.append(class_id_keys)
-                if class_id_keys not in i2c.keys():
-                    print('New class', class_id)
-                    i2c.update(class_id)
-                    np.save(os.path.join(load_path, FOLDER, 'to_labels.npy'), i2c, fix_imports=False)
+            if data.shape[0] != 0:
+                class_ids = get_class_id(data, conf)
+                class_ids_keys = []
+                for class_id in class_ids:
+                    class_id_keys = list(class_id.keys())[0]
+                    class_ids_keys.append(class_id_keys)
+                    if class_id_keys not in i2c.keys():
+                        print('New class', class_id)
+                        i2c.update(class_id)
+                        np.save(os.path.join(load_path, FOLDER, 'to_labels.npy'), i2c, fix_imports=False)
 
-            X_train = np.concatenate((X_train, np.array(data)), axis=0)
-            y_train = np.concatenate((y_train, np.array(class_ids_keys)), axis=0)
+                X_train = np.concatenate((X_train, np.array(data)), axis=0)
+                y_train = np.concatenate((y_train, np.array(class_ids_keys)), axis=0)
 
         print('after adding filter sample', X_train.shape, y_train.shape)
+        if s3_load:
+            loop.close()
+
+        exit(0)
 
     else:
         for conf in [conf]:
@@ -456,7 +500,8 @@ def model_train(X_train, X_val, y_train, y_val, i2c, save_path, model_type='SVC'
         if y_val is not None and len(y_val) == X_val.shape[0]:
             # print('test X', X_val.shape)
             # print('test y', len(y_val))
-            print(accuracy_score(clf.predict(X_val), y_val))
+            # print(accuracy_score(clf.predict(X_val), y_val))
+            print('Accuracy score XGBoost', accuracy_score(y_val, clf.predict(X_val)))
 
         if grid_search:
             params_trained = xgboost_grid_search(X_train, y_train, base_params)
@@ -506,11 +551,11 @@ def main():
         X_train, X_test, y_train, y_test, i2c = data_set_load_cnn_data(load_path=load_path,
                                                                        test_size=0.1,
                                                                        random_state=42,
-                                                                       limit=800)
+                                                                       limit=300)
         # print(i2c)
         X_pca = X_train
         y_pca = y_train
-        exit(0)
+        # exit(0)
 
     X_val = X_test
     y_val = y_test
@@ -557,6 +602,7 @@ def main():
         y_pred = clf.predict(X_test_pca)
         print('test', accuracy_score(y_pred, y_test))
 
+    print('Save model to', os.path.join(save_path, 'model' if model_type == 'SVC' else FOLDER, 'model.pkl'))
     # Save model
     with open(os.path.join(save_path, 'model' if model_type == 'SVC' else FOLDER, 'model.pkl'), 'wb') as fp:
         pickle.dump(clf, fp)
