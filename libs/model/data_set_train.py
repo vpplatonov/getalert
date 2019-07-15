@@ -178,6 +178,102 @@ async def get_s3_file(loop, filename):
             return b''
 
 
+def s3_load_train_prepare(conf, threshold=0.55):
+    files = get_s3_files()
+    print("Add files from MongoDB")
+    loop = asyncio.get_event_loop()
+    for i, file_to_filter in enumerate(files):
+        file = loop.run_until_complete(get_s3_file(loop, file_to_filter))
+
+        # FIXME: for test only purposes
+        # data = audio_load(conf, pathname, pydub_read=True)
+
+        samples = get_samples(conf, file, pydub_read=True)
+
+        # FIXED : CNN feature extraction
+        # conf['i2c'] = i2c
+        time_ranges, predictions = label_wav(samples, hots_port, conf)
+        print(time_ranges, predictions, file_to_filter['filename'].split('/').pop())
+
+        # extract feature for XGBoost
+        xx = np.array([])
+        for i, pred in enumerate(predictions):
+            # print(list(pred.keys())[0])
+            if list(pred.keys())[0] == file_to_filter['class_predicted']:
+                # FIXME: check probability prediction - must be confident > 55%
+                # because customer mistake
+                if threshold > 0 and predictions[i][file_to_filter['class_predicted']] < threshold:
+                    continue
+                # FIXED: convert start:stop ms into array index
+                start = millisec_to_value(time_ranges[i]['start'], conf)
+                stop = millisec_to_value(time_ranges[i]['stop'], conf)
+                chunk = samples[start:stop]
+
+                # Feature extraction
+                x = get_play_list_data(conf, chunk)
+                if xx.shape[0] == 0:
+                    xx = np.array(x)
+                else:
+                    np.concatenate((xx, np.array(x)), axis=0)
+
+    loop.close()
+
+    return xx
+
+
+def data_set_fp_prepare(conf, fp_folder, s3_load=True, save_labels=''):
+    # Next step
+    # Add exclude file to train with class
+    i2c = conf['i2c']
+    if s3_load:
+       data = s3_load_train_prepare(conf, threshold=0)
+
+    else:
+        # fp_folder = os.path.normpath("c:/Users/User/Downloads/Skype/_false_positive")
+        files = [i for i in os.listdir(fp_folder)]
+        print('Adding from:', fp_folder)
+
+        for i, file_to_filter in enumerate(files):
+            x = read_audio(conf, pathname=os.path.join(fp_folder, file_to_filter))
+            xx = get_mfcc_feature(x)
+            data = [xx]
+
+    class_ids_keys = []
+    if data.shape[0] != 0:
+        class_ids = get_class_id(data, conf)
+        for class_id in class_ids:
+            class_id_keys = list(class_id.keys())[0]
+            class_ids_keys.append(class_id_keys)
+            if save_labels and class_id_keys not in i2c.keys():
+                print('New class', class_id)
+                i2c.update(class_id)
+                np.save(os.path.join(save_labels, 'to_labels.npy'), i2c, fix_imports=False)
+
+    return data, class_ids_keys
+
+
+def data_set_fp_combine(conf, load_path, ds_folder, fp_folder, s3_load=True):
+    X_train, y_train, idx_train, plain_y_train = data_set_load_folder(Path('../output') / ds_folder,
+                                                                      prefix='')
+    print("will be used already prepared data set for", ds_folder)
+    print(X_train.shape)
+    print(y_train.shape)
+
+    # Next step
+    data, class_ids_keys = data_set_fp_prepare(conf,
+                                               fp_folder,
+                                               s3_load=s3_load)
+                                               # save_labels=os.path.join(load_path, ds_folder))
+    if data.shape[0] != 0:
+        X_train = np.concatenate((X_train, np.array(data)), axis=0)
+        y_train = np.concatenate((y_train, np.array(class_ids_keys)), axis=0)
+
+    print('after adding filter sample', X_train.shape, y_train.shape)
+    exit(0)
+
+    return X_train, y_train
+
+
 def data_set_load_cnn_data(load_path, test_size=0.2, random_state=42, limit=0, s3_load=True):
 
     DATAROOT = Path('./../../GetAlertCNN/GetAlertCNN')
@@ -192,85 +288,12 @@ def data_set_load_cnn_data(load_path, test_size=0.2, random_state=42, limit=0, s
     conf['audio_length'] = SOUND_DURATION
 
     if os.path.exists(os.path.join('../output/', FOLDER, 'X_train.npy')):
-        X_train, y_train, idx_train, plain_y_train = data_set_load_folder(Path('../output') / FOLDER,
-                                                                          prefix='')
-        print("will be used already prepared data set for", FOLDER)
-        X_test = None
+
+        fp_folder = os.path.normpath("../cnn_predicted_cry")
         i2c = np.load(os.path.join(load_path, FOLDER, 'to_labels.npy')).tolist()
-        print(X_train.shape)
-        print(y_train.shape)
-
-        # Next step
-        # Add exclude file to train with class
-        if s3_load:
-            files = get_s3_files()
-            print("Add files from MongoDB")
-            loop = asyncio.get_event_loop()
-        else:
-            # folder = os.path.normpath("c:/Users/User/Downloads/Skype/_false_positive")
-            folder = os.path.normpath("../cnn_predicted_1_cry")
-            files = [i for i in os.listdir(folder)]
-            print('Adding from:', folder)
-
-        for i, file_to_filter in enumerate(files):
-            # print(file_to_filter)
-            if s3_load:
-                file = loop.run_until_complete(get_s3_file(loop, file_to_filter))
-
-                # FIXME: for test only purposes
-                # data = audio_load(conf, pathname, pydub_read=True)
-
-                samples = get_samples(conf, file, pydub_read=True)
-                # FIXED : CNN feature extraction
-                conf['i2c'] = i2c
-                time_ranges, predictions = label_wav(samples, hots_port, conf)
-                print(time_ranges, predictions, file_to_filter['filename'].split('/').pop())
-
-                # extract feature for XGBoost
-                xx = np.array([])
-                for i, pred in enumerate(predictions):
-                    # FIXME: check probability prediction - must be confident > 75%
-                    # because customer mistake
-                    # print(list(pred.keys())[0])
-                    if list(pred.keys())[0] == file_to_filter['class_predicted']:
-                        # FIXED: convert start:stop ms into array index
-                        start = millisec_to_value(time_ranges[i]['start'], conf)
-                        stop = millisec_to_value(time_ranges[i]['stop'], conf)
-                        chunk = samples[start:stop]
-
-                        # Feature extraction
-                        x = get_play_list_data(conf, chunk)
-                        if xx.shape[0] == 0:
-                            xx = np.array(x)
-                        else:
-                            np.concatenate((xx, np.array(x)), axis=0)
-
-                data = xx
-
-            else:
-                x = read_audio(conf, pathname=os.path.join(folder, file_to_filter))
-                xx = get_mfcc_feature(x)
-                data = [xx]
-
-            if data.shape[0] != 0:
-                class_ids = get_class_id(data, conf)
-                class_ids_keys = []
-                for class_id in class_ids:
-                    class_id_keys = list(class_id.keys())[0]
-                    class_ids_keys.append(class_id_keys)
-                    if class_id_keys not in i2c.keys():
-                        print('New class', class_id)
-                        i2c.update(class_id)
-                        np.save(os.path.join(load_path, FOLDER, 'to_labels.npy'), i2c, fix_imports=False)
-
-                X_train = np.concatenate((X_train, np.array(data)), axis=0)
-                y_train = np.concatenate((y_train, np.array(class_ids_keys)), axis=0)
-
-        print('after adding filter sample', X_train.shape, y_train.shape)
-        if s3_load:
-            loop.close()
-
-        exit(0)
+        conf['i2c'] = i2c
+        X_test = None
+        X_train, y_train = data_set_fp_combine(conf, load_path, FOLDER, fp_folder, s3_load=s3_load)
 
     else:
         for conf in [conf]:

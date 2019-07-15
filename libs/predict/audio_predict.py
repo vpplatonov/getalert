@@ -17,16 +17,16 @@ import asyncio
 
 import librosa
 
-from model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, MIN_IO, aws_secret_access_key, aws_access_key_id
-from model.feed_model_store import db_save_file_info, FEED_TEST, get_db, db_load_model, COLLECTION_MODEL, DB_NAME
-from predict.feature_engineer import (
+from libs.model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, MIN_IO, aws_secret_access_key, aws_access_key_id
+from libs.model.feed_model_store import db_save_file_info, FEED_TEST, get_db, db_load_model, COLLECTION_MODEL, DB_NAME
+from libs.predict.feature_engineer import (
     SAMPLE_RATE, get_mfcc_feature, convert_to_labels, NUM_PCA, MODEL_TYPE,
     PATH_SUFFIX_LOAD, PATH_SUFFIX_SAVE, extract_feature, SOUND_DURATION,
     conf_load, FOLDER, audio_load
 
 )
-from predict.strategy import predict_category
-from cnn_predict.utils import send_on_predict
+from libs.predict.strategy import predict_category
+from libs.cnn_predict.utils import send_on_predict
 
 
 def get_file_name():

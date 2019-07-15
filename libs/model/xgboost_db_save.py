@@ -2,7 +2,7 @@ import os
 import boto3
 import datetime
 
-from model.feed_model_store import db_save_file_info, FEED_TEST, get_db  #, DB_NAME
+from libs.model.feed_model_store import db_save_file_info, FEED_TEST, get_db  #, DB_NAME
 
 # COLLECTION_FILE = 'feed_files'
 COLLECTION_FILE = 'fp_sounds'

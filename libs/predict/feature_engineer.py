@@ -28,21 +28,27 @@ FOLDER = 'XGBoost3'
 
 
 def conf_load(dataroot, folder=FOLDER):
-    # print(str(dataroot / folder / 'conf.npy'))
+    # print(os.path.abspath(str(dataroot / folder / 'conf.npy')))
     if os.path.exists(str(dataroot / folder / 'conf.npy')):
         conf = np.load(dataroot / folder / 'conf.npy').tolist()
+        # conf['folder'] = folder
     else:
-        conf = np.array([])
+        conf = dict()
         conf['sampling_rate'] = SAMPLE_RATE
         conf['duration'] = SOUND_DURATION
-        conf['n_mfcc'] = NUM_MFCC
         conf['hop_length'] = FRAME
+        conf['n_mels'] = 48
+        conf['folder'] = FOLDER
 
     conf['learning_rate'] = 0.0001
     conf['samples'] = conf['sampling_rate'] * conf['duration']
     conf['dims'] = (conf['n_mels'], 1 + int(np.floor(conf['samples'] / conf['hop_length'])), 1)
     conf['normalize'] = 'featurewise'
-    conf['folder'] = FOLDER
+    conf['fmin'] = 20
+    conf['fmax'] = 8000
+    conf['n_fft'] = conf['n_mels'] * 20
+    conf['n_mfcc'] = NUM_MFCC
+    conf['audio_split'] = 'dont_crop'
 
     return conf
 

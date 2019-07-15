@@ -6,7 +6,8 @@ import numpy as np
 
 def get_config():
 
-    DATAROOT = './cry_detection/models'
+    DATAROOT = os.path.abspath('..')
+    # DATAROOT = './cnn_predict/models'
 
     # FOLDER = 'X5D'  # See Readme.mdq
     # FOLDER = 'X5A'  # default for baby cry prediction with full baby cry(improved) dataset & scream & people_noise ( previous X5N ) & adult_cry
@@ -18,13 +19,12 @@ def get_config():
     path_to_model = os.path.join(DATAROOT, FOLDER)
 
     path_to_conf = os.path.join(path_to_model, 'conf.npy')
+
     if not os.path.exists(path_to_conf):
         raise Exception('conf.npy file does not exist.')
     else:
         confX = np.load(path_to_conf).tolist()
-#		# Fix old version of saved conf
-#        if str(type(confX['folder'])).find('pathlib.WindowsPath') != -1:
-#            _, confX = get_config_default()
+
     path_to_labels = os.path.join(path_to_model, 'labels.npy')
     if not os.path.exists(path_to_labels):
         raise Exception('labels.npy file does not exist.')
@@ -37,8 +37,11 @@ def get_config():
 
     confX['normalize'] = 'featurewise'
 
+    confX['n_mels'] = 48
+    confX['n_mfcc'] = 30
+    confX['n_fft'] = confX['n_mels'] * 20
     confX['samples'] = confX['sampling_rate'] * confX['duration']
-    confX['dims'] = (confX['n_mels'], 1 + int(np.floor(confX['samples']/confX['hop_length'])), 1)
+    confX['dims'] = (confX['n_mels'], 1 + int(np.floor(confX['samples'] / confX['hop_length'])), 1)
 
     confX['learning_rate'] = 0.0001
     confX['folder'] = FOLDER
@@ -53,4 +56,6 @@ def get_config():
     # for normalization
     confX['headroom'] = 6
     confX['max_possible_amplitude'] = (2 ** (confX['sample_width'] * 8)) / 2
+    confX['audio_split'] = 'dont_crop'
+
     return confX
