@@ -12,6 +12,10 @@ from tensorflow_serving.apis import prediction_service_pb2_grpc
 async def send_on_predict(hots_port, model_name, version, data):
     """Send array to the Tensorflow Serving.
 
+    Must be wrapped in high level function. @see serving_test.py
+        try:
+        except grpc.RpcError as e:
+
     Args:
         hots_port: The host:port string.
         model_name: The model name.
@@ -20,25 +24,24 @@ async def send_on_predict(hots_port, model_name, version, data):
 
     Returns:
         predictions
+    Exception:
+        grpc.RpcError
     """
-    t_st = time.time()
-    try:
-        # create the channel
-        channel = grpc.insecure_channel(hots_port)
-        stub = prediction_service_pb2_grpc.PredictionServiceStub(channel) 
-        # create the request
-        request = predict_pb2.PredictRequest()
-        request.model_spec.name = model_name
-        request.model_spec.version.value = version
-        # convert the data
-        send_data = tf.contrib.util.make_tensor_proto(data.astype(np.float32))
-        request.inputs['input_array'].CopyFrom(send_data)
-        # send on prediction
-        result = stub.Predict(request, 10.0)  # 10 secs timeout
-        return np.expand_dims(result.outputs["dense_2/Softmax:0"].float_val, axis=0), time.time() - t_st
-    except Exception as err:
-        print(err)
-        return np.array([]), time.time() - t_st
+
+    # create the channel
+    channel = grpc.insecure_channel(hots_port)
+    stub = prediction_service_pb2_grpc.PredictionServiceStub(channel)
+    # create the request
+    request = predict_pb2.PredictRequest()
+    request.model_spec.name = model_name
+    request.model_spec.version.value = version
+    # convert the data
+    send_data = tf.contrib.util.make_tensor_proto(data.astype(np.float32))
+    request.inputs['input_array'].CopyFrom(send_data)
+    # send on prediction
+    result = stub.Predict(request, 10.0)  # 10 secs timeout
+
+    return np.expand_dims(result.outputs["dense_2/Softmax:0"].float_val, axis=0)
 
 
 async def main():

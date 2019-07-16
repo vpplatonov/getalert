@@ -8,6 +8,9 @@ output/
 venv/
 ENV/
 
+# pytest
+libs/feature_test/.pytest_cache/*
+
 # work files
 XGBoost*/
 cnn_predicted*/
