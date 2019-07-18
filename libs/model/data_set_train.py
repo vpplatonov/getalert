@@ -20,7 +20,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
 from sklearn.svm import SVC
-from predict.feature_engineer import NUM_PCA, MODEL_TYPE, read_audio, \
+from libs.predict.feature_engineer import NUM_PCA, MODEL_TYPE, read_audio, \
     get_mfcc_feature, conf_load, FOLDER, audio_load, get_samples, get_play_list_data, SOUND_DURATION
 from xgboost import XGBClassifier
 from pathlib import Path
@@ -28,11 +28,11 @@ from .xgboost_train import balance_class_by_over_sampling, print_class_balance, 
     MAX_DEPTH, MIN_CHILD_WEIGHT, GAMMA, SUBSAMPLE, COLSAMPLE_BYTREE, LEARNING_RATE
 
 import boto3
-from model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, DB_NAME, MIN_IO, aws_secret_access_key, aws_access_key_id
-from model.feed_model_store import get_db, FEED_TEST
+from libs.model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, DB_NAME, MinS3Local
+from libs.model.feed_model_store import get_db, FEED_TEST
 
-from cnn_predict.utils import send_on_predict, millisec_to_value
-from cnn_predict.cry_prediction import label_wav
+from libs.cnn_predict.utils import send_on_predict, millisec_to_value
+from libs.cnn_predict.cry_prediction import label_wav
 
 tqdm.pandas()
 
@@ -132,14 +132,13 @@ def get_class_id(sample, conf):
     return class_ids
 
 
-def get_s3_files():
+def get_s3_files(collection, feed_id=FEED_TEST, class_predicted=CLASS_PREDICTED):
     """
-    READ FROM Mongo DB file info
+    READ FROM MongoDB file info
     """
-    collection = get_db(db_name=DB_NAME)[COLLECTION_FILE]
-    query = {'feed_id': FEED_TEST,
+    query = {'feed_id': feed_id,
              'status': {'$in': [0, 1]},
-             'class_predicted': CLASS_PREDICTED}
+             'class_predicted': class_predicted}
     selected_field = {'filename': 1, 'class_predicted': 1, '_id': 0}
     fp_sounds = collection.find(query, selected_field)
     # print(fp_sounds)
@@ -157,14 +156,8 @@ async def get_s3_file(loop, filename):
     file = filename['filename'].split('/')
 
     session = aiobotocore.get_session(loop=loop)
-    async with session.create_client(
-        # The name of the service for which a client will be created.
-        service_name="s3",
-        endpoint_url=MIN_IO,
-        aws_secret_access_key=aws_secret_access_key,
-        aws_access_key_id=aws_access_key_id
-    ) as s3_client:
-
+    # The name of the service for which a client will be created.
+    async with session.create_client(**MinS3Local._asdict()) as s3_client:
         try:
             s3_data = await s3_client.get_object(
                 Bucket=file[0],
@@ -179,7 +172,8 @@ async def get_s3_file(loop, filename):
 
 
 def s3_load_train_prepare(conf, threshold=0.55):
-    files = get_s3_files()
+    collection = get_db(db_name=DB_NAME)[COLLECTION_FILE]
+    files = get_s3_files(collection)
     print("Add files from MongoDB")
     loop = asyncio.get_event_loop()
     for i, file_to_filter in enumerate(files):

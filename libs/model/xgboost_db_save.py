@@ -1,29 +1,30 @@
 import os
 import boto3
 import datetime
+from collections import namedtuple
 
-from libs.model.feed_model_store import db_save_file_info, FEED_TEST, get_db  #, DB_NAME
+from libs.model.feed_model_store import db_save_file_info, FEED_TEST, get_db
 
 # COLLECTION_FILE = 'feed_files'
 COLLECTION_FILE = 'fp_sounds'
 CLASS_PREDICTED = 'crying_baby'
 DB_NAME = 'local'
+
 MIN_IO = 'http://127.0.0.1:9000'
 MIN_IO_BUCKET = 'sound.detections'
 aws_secret_access_key = "3qHnT7bUaSUIDIBn1bYgG9NZmDqoIThRmFPlqiNk"
 aws_access_key_id = "Y82N14S1Q7095ZBWU12L"
 
+MinResource = namedtuple('MinResource', ['service_name', 'endpoint_url', 'aws_secret_access_key', 'aws_access_key_id'])
+MinResource.__new__.__defaults__ = ('s3', '', '', '')
+MinS3Local = MinResource("s3", MIN_IO, aws_secret_access_key, aws_access_key_id)
+
 
 def main():
-    load_path_model = os.path.normpath('../cnn_predicted_cry')
-    collection = get_db(db_name=DB_NAME)[COLLECTION_FILE]
 
-    s3_client = boto3.resource(
-        # The name of the service for which a client will be created.
-        service_name="s3",
-        endpoint_url=MIN_IO,
-        aws_secret_access_key=aws_secret_access_key,
-        aws_access_key_id=aws_access_key_id)
+    collection = get_db(db_name=DB_NAME)[COLLECTION_FILE]
+    # The name of the service for which a client will be created.
+    s3_client = boto3.resource(**MinS3Local._asdict())
 
     try:
         bucket = s3_client.Bucket(MIN_IO_BUCKET)
@@ -32,11 +33,10 @@ def main():
     except:
         pass
 
-    resp = s3_client.create_bucket(
-        Bucket=MIN_IO_BUCKET
-    )
+    resp = s3_client.create_bucket(Bucket=MIN_IO_BUCKET)
     print('create_bucket', resp)
 
+    load_path_model = os.path.normpath('../cnn_predicted_cry')
     file_list = os.listdir(load_path_model)
     for audio_file in file_list:
         # Save info to MongoDB
