@@ -9,19 +9,18 @@ import os
 import io
 import pickle
 
-from model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, DB_NAME, MIN_IO, aws_secret_access_key, aws_access_key_id
-from model.feed_model_store import get_db, FEED_TEST
-from predict.feature_engineer import NUM_PCA, MODEL_TYPE, read_audio, get_mfcc_feature, conf_load, FOLDER, audio_load
-from model.data_set_train import get_class_id
+from libs.model.xgboost_db_save import COLLECTION_FILE, CLASS_PREDICTED, DB_NAME, MIN_IO, aws_secret_access_key, aws_access_key_id
+from libs.model.feed_model_store import get_db, FEED_TEST
+from libs.predict.feature_engineer import NUM_PCA, MODEL_TYPE, read_audio, get_mfcc_feature, conf_load, FOLDER, audio_load
+from libs.model.data_set_train import get_class_id
 
 MIN_IO_BUCKET = 'sound.detections'
 
 
-def get_s3_files():
+def get_s3_files(collection):
     """
     READ FROM Mongo DB file info
     """
-    collection = get_db(db_name=DB_NAME)[COLLECTION_FILE]
     query = {'feed_id': FEED_TEST,
              'status': {'$in': [0, 1]},
              'class_predicted': CLASS_PREDICTED}
@@ -69,7 +68,8 @@ def main():
     X_train_extra = np.array([])
     y_train_extra = []
 
-    files = get_s3_files()
+    collection = get_db(db_name=DB_NAME)[COLLECTION_FILE]
+    files = get_s3_files(collection)
     loop = asyncio.get_event_loop()
 
     for i, file in enumerate(files):

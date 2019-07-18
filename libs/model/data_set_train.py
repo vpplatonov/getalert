@@ -146,6 +146,17 @@ def get_s3_files(collection, feed_id=FEED_TEST, class_predicted=CLASS_PREDICTED)
     return fp_sounds
 
 
+async def get_s3_object(s3_client, file):
+    s3_data = await s3_client.get_object(
+        Bucket=file[0],
+        Key=file[1] + '/' + file[2]
+    )
+    body = await s3_data["Body"].read()
+    data = io.BytesIO(body)
+
+    return data
+
+
 async def get_s3_file(loop, filename):
     """
     Read from S3 bucket MIN IO filename from Mongo DB
@@ -159,13 +170,7 @@ async def get_s3_file(loop, filename):
     # The name of the service for which a client will be created.
     async with session.create_client(**MinS3Local._asdict()) as s3_client:
         try:
-            s3_data = await s3_client.get_object(
-                Bucket=file[0],
-                Key=file[1] + '/' + file[2]
-            )
-            body = await s3_data["Body"].read()
-            data = io.BytesIO(body)
-            return data
+            return await get_s3_object(s3_client, file)
         except Exception as e:
             print(e)
             return b''

@@ -4,11 +4,13 @@ import os
 import boto3
 from collections import namedtuple
 from botocore.exceptions import ClientError
-from .conftest import idparametrize
+from .conftest import idparametrize, load_path_model, FileList, FileLists
 
 from libs.model.xgboost_db_save import MinS3Local
 from libs.model.feed_model_store import db_save_file_info, FEED_TEST
-from libs.model.data_set_train import get_s3_files
+from libs.model.data_set_train import get_s3_files, get_s3_file, get_s3_object
+from libs.predict.feature_engineer import get_samples
+from .conftest import DB_HOST, DB_PORT, DB_NAME, COLLECTION_FILE, MIN_IO_BUCKET, CLASS_PREDICTED
 
 import pymongo
 import datetime
@@ -20,57 +22,22 @@ from collections import namedtuple
 from xgboost import XGBClassifier, XGBRegressor
 import json
 
-# MongoDB param
-DB_HOST = 'localhost'
-DB_PORT = '27017'
-# DB_NAME = 'feed_filter'
-
-CLASS_PREDICTED = 'crying_baby'
-DB_NAME = 'local'
-COLLECTION_FILE = 'fp_sounds'
-
-# Minio S3 param
-MIN_IO_BUCKET = 'sound.detections'
-
-# File Upload param
-load_path_model = os.path.normpath('../cnn_predicted_cry')
-FileList = namedtuple('FileList', ['path', 'num_files'])
-FileLists = [FileList(load_path_model, 12),
-             FileList(os.path.normpath('../cnn_predicted_1_cry'), 36)]
-
-
-@pytest.fixture(scope='session')
-def s3_client():
-    session = boto3.session.Session()
-    # The name of the service for which a client will be created.
-    s3_client = session.resource(**MinS3Local._asdict())
-
-    return s3_client
-
-
-@pytest.fixture(scope='session')
-def mongo_connect():
-    myclient = pymongo.MongoClient("mongodb://{}:{}/".format(DB_HOST, DB_PORT))
-
-    return myclient
-
-
-@pytest.fixture(scope='module')
-def file_list_prep():
-
-    file_list = os.listdir(load_path_model)
-
-    return file_list
-
 
 @pytest.fixture(scope='module')
 def file_list_prepare(request):
+    """
+    Use for parametrized test with decorator
+    @idparametrize(..., ..., fixture=True)
 
+    :param request:
+    :return:
+    """
     class Structure:
         def __init__(self, flist):
             # file_list = flist._asdict()
             self.file_list = os.listdir(flist.path)
             self.num_files = flist.num_files
+            self.path = flist.path
 
     return Structure(request.param)
 
@@ -106,19 +73,27 @@ def create_bucket(s3_client):
 
     # delete bucket on Minio S3
     _bucket = s3_client.Bucket(MIN_IO_BUCKET)
-    # _bucket.objects.all().delete()
     _bucket.delete()
 
 
 @pytest.fixture(scope='module')
-def prepare_bucket(create_bucket):
+def prepare_bucket(create_bucket, file_list_prepare):
+    """
+    Move all files to S3 bucket
+    :param create_bucket:
+    :return:
+    """
+    for audio_file in file_list_prepare.file_list:
+        # Save to MinIO
+        create_bucket.upload_file(
+            Filename=os.path.join(os.path.abspath(file_list_prepare.path), audio_file),
+            Key=FEED_TEST + '/' + audio_file
+        )
 
     yield
 
     # clear bucket on Minio S3
-    # _bucket = s3_client.Bucket(MIN_IO_BUCKET)
     create_bucket.objects.all().delete()
-    # create_bucket.delete()
 
 
 class TestMongoS3():
@@ -137,6 +112,11 @@ class TestMongoS3():
 
     @pytest.mark.xfail()
     def test_s3_create_bucket(self, create_bucket):
+        """
+
+        :param create_bucket:
+        :return:
+        """
         # Create bucket
         try:
             resp = create_bucket
@@ -148,6 +128,19 @@ class TestMongoS3():
             print(e)
             print(type(create_bucket))
             assert False
+
+    @idparametrize('file_list_prepare', FileLists, fixture=True)
+    def test_prepare_bucket(self, file_list_prepare, prepare_bucket, s3_client, _loops, case_conf_load):
+        for audio_file in file_list_prepare.file_list:
+            # data = get_s3_object(s3_client, [MIN_IO_BUCKET, FEED_TEST, audio_file])
+            # print(type(data))
+            # assert data
+
+            file = _loops.run_until_complete(get_s3_file(_loops, {'filename': '/'.join([MIN_IO_BUCKET, FEED_TEST, audio_file])}))
+            samples = get_samples(case_conf_load, file, pydub_read=True)
+
+            assert isinstance(samples, type(np.ndarray([])))
+            assert file
 
     def test_mongo(self, mongo_connect):
         assert mongo_connect[DB_NAME]
@@ -163,4 +156,3 @@ class TestMongoS3():
                              feed_id=FEED_TEST,
                              class_predicted=CLASS_PREDICTED)
         assert files.count() == file_list_prepare.num_files
-

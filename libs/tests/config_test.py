@@ -38,13 +38,6 @@ def case_data():
     print("\n   > Case teardown")
 
 
-@pytest.fixture(scope='function')
-def case_conf_load():
-    dataroot = Path('.')
-    conf = conf_load(dataroot)
-    yield conf
-
-
 @pytest.fixture(scope='module')
 def case_conf_default():
     conf = get_config()
@@ -65,11 +58,13 @@ def config_default(request):
 
 class TestSuite():
 
+    @pytest.mark.xfail()
     def test_case_1(self, case_data):
         time = int(case_data)
         print("      > Received from fixture timestamp is: {}".format(time))
         assert(time % 2 == 0)
 
+    @pytest.mark.xfail()
     def test_case_2(self, case_data, additional_value):
         time = int(case_data)
         parameter = additional_value

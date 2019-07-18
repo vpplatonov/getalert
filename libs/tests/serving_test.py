@@ -23,13 +23,6 @@ def socket():
     _socket.close()
 
 
-@pytest.yield_fixture(scope='module')
-def _loops():
-    _loop = asyncio.get_event_loop()
-    yield _loop
-    _loop.close()
-
-
 @pytest.fixture(scope='module')
 def Server(request):
 
