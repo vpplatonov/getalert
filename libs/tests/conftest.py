@@ -8,6 +8,7 @@ from collections import namedtuple
 from pathlib import Path
 from libs.predict.feature_engineer import conf_load
 from libs.model.xgboost_db_save import MinS3Local
+from libs.cnn_predict.config import get_config
 
 # MongoDB param
 DB_HOST = 'localhost'
@@ -46,6 +47,12 @@ def idparametrize(name, values, fixture=False):
                                    indirect=fixture)
 
 
+@pytest.fixture(scope='session')
+def case_conf_default():
+    conf = get_config()
+    yield conf
+
+
 @pytest.fixture(scope='function')
 def case_conf_load():
     dataroot = Path('.')
@@ -53,7 +60,7 @@ def case_conf_load():
     yield conf
 
 
-@pytest.yield_fixture(scope='session')
+@pytest.fixture(scope='session')
 def _loops():
     _loop = asyncio.get_event_loop()
     yield _loop
@@ -73,7 +80,9 @@ def s3_client():
 def mongo_connect():
     myclient = pymongo.MongoClient("mongodb://{}:{}/".format(DB_HOST, DB_PORT))
 
-    return myclient
+    yield myclient
+
+    myclient.close()
 
 
 @pytest.fixture(scope='session')

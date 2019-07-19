@@ -5,7 +5,6 @@ from collections import namedtuple
 from .conftest import idparametrize
 
 from libs.predict.feature_engineer import conf_load
-from libs.cnn_predict.config import get_config
 
 conf_fields = ['audio_split', 'dims', 'learning_rate', 'folder', 'hop_length', 'samples', 'sampling_rate', 'duration',
                'normalize', 'n_mels', 'n_mfcc', 'fmin', 'n_fft', 'fmax']
@@ -36,12 +35,6 @@ def case_data():
     print("   > Case setup")
     yield time.time()
     print("\n   > Case teardown")
-
-
-@pytest.fixture(scope='module')
-def case_conf_default():
-    conf = get_config()
-    yield conf
 
 
 @pytest.fixture(scope='module')
