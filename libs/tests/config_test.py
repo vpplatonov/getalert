@@ -49,6 +49,12 @@ def config_default(request):
     return Structure(request.param)
 
 
+@pytest.fixture(scope="session")
+def additional_value(pytestconfig):
+    """Handler for --additional_value parameter"""
+    return pytestconfig.getoption("--additional_value", default=0)
+
+
 class TestSuite():
 
     @pytest.mark.xfail()
@@ -65,6 +71,10 @@ class TestSuite():
         print("      > Received from comandline parameter value is: {}".format(parameter))
         time += parameter
         assert(time % 2 == 0)
+
+    def test_fixtures_for_options(self, additional_value):
+        print('"additional_value" set to:', additional_value)
+        assert additional_value
 
     def test_conf_load(self, case_conf_load):
         assert case_conf_load
@@ -86,9 +96,3 @@ class TestSuite():
         assert isinstance(case_conf_default, dict)
         assert case_conf_default['sampling_rate'] == 16000
         assert case_conf_default['duration'] == 3
-
-
-@pytest.fixture(scope="session")
-def additional_value(request):
-    """Handler for --additional_value parameter"""
-    return request.config.getoption("--additional_value", default=0)
