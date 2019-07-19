@@ -69,7 +69,7 @@ class TestSuite():
     def test_conf_load(self, case_conf_load):
         assert case_conf_load
         assert Conf(**case_conf_load)
-        assert type(case_conf_load) == dict
+        assert isinstance(case_conf_load, dict)
         assert case_conf_load['sampling_rate'] == 16000
         assert case_conf_load['duration'] == 3    \
 
@@ -77,13 +77,13 @@ class TestSuite():
     def test_conf_load_param(self, config_default):
         assert config_default.conf
         assert Conf(**config_default.conf)
-        assert type(config_default.conf) == dict
+        assert isinstance(config_default.conf, dict)
         assert config_default.conf['sampling_rate'] == config_default.param.sampling_rate
         assert config_default.conf['duration'] == config_default.param.duration
 
     def test_conf_default(self, case_conf_default):
         assert Config(**case_conf_default)
-        assert type(case_conf_default) == dict
+        assert isinstance(case_conf_default, dict)
         assert case_conf_default['sampling_rate'] == 16000
         assert case_conf_default['duration'] == 3
 
