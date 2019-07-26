@@ -149,14 +149,14 @@ def play_list_predict(model, i2c, play_list_processed, k=1, api=False):
         loop = asyncio.get_event_loop()
 
     for signal in play_list_processed:
-        print(signal.shape)
+        # print(signal.shape)
         if api:
             predict = loop.run_until_complete(send_on_predict(np.array([signal])))
         else:
             predict = model.predict_proba([signal])
 
-        print(predict)
-        exit(0)
+        # print(predict)
+        # exit(0)
 
         str_preds, idx = convert_to_labels(predict, i2c, k=k)
         predictions.append(dict(zip(str_preds[0].split(' '), predict[0][idx[0]])))

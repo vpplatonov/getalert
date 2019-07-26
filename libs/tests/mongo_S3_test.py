@@ -5,6 +5,11 @@ import boto3
 from collections import namedtuple
 from botocore.exceptions import ClientError
 from .conftest import idparametrize, load_path_model, FileList, FileLists
+import collections  # From Python standard library.
+import json
+import bson
+from bson.codec_options import CodecOptions
+from bson import json_util
 
 from libs.model.xgboost_db_save import MinS3Local
 from libs.model.feed_model_store import db_save_file_info, FEED_TEST
@@ -20,7 +25,23 @@ from collections import namedtuple
 
 # next line for pickle.load()
 from xgboost import XGBClassifier, XGBRegressor
-import json
+
+
+@pytest.fixture(scope='module')
+def mongo_bson_prepare():
+    s = '{"_id": {"$oid": "4edebd262ae5e93b41000000"}}'
+    u = json.loads(s, object_hook=json_util.object_hook)
+    return u
+
+
+@pytest.fixture(scope='module')
+def mongo_files_read(mongo_prepare, file_list_prepare):
+    collection = mongo_prepare[COLLECTION_FILE]
+    files = get_s3_files(collection,
+                         feed_id=FEED_TEST,
+                         class_predicted=CLASS_PREDICTED)
+
+    return files
 
 
 @pytest.fixture(scope='module')
@@ -98,6 +119,16 @@ def prepare_bucket(create_bucket, file_list_prepare):
 
 class TestMongoS3():
 
+    def test_bson_decoder(self, mongo_bson_prepare):
+        s = json.dumps(mongo_bson_prepare, default=json_util.default)
+        # print(mongo_bson_prepare)
+        u = bson.BSON.encode(mongo_bson_prepare)
+        # print(type(u))
+
+        assert isinstance(u, type(bson.BSON()))
+        assert isinstance(mongo_bson_prepare, dict)
+        assert isinstance(s, str)
+
     def test_S3_client(self):
         session = boto3.session.Session()
         s3_client = session.resource(**MinS3Local._asdict())
@@ -142,6 +173,9 @@ class TestMongoS3():
             assert isinstance(samples, type(np.ndarray([])))
             assert file
 
+    def test_file_list(self, file_list_prep):
+        assert len(file_list_prep) == 12
+
     def test_mongo(self, mongo_connect):
         assert mongo_connect[DB_NAME]
 
@@ -155,4 +189,11 @@ class TestMongoS3():
         files = get_s3_files(collection,
                              feed_id=FEED_TEST,
                              class_predicted=CLASS_PREDICTED)
+        assert files.count() == file_list_prepare.num_files
+
+    @idparametrize('file_list_prepare', FileLists, fixture=True)
+    def test_mongo_read_decode(self, mongo_files_read, file_list_prepare):
+        files = mongo_files_read
+        # print(files[0])
+        assert isinstance(files[0], dict)
         assert files.count() == file_list_prepare.num_files

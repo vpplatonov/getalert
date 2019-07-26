@@ -24,11 +24,11 @@ COLLECTION_FILE = 'fp_sounds'
 MIN_IO_BUCKET = 'sound.detections'
 
 # File Upload param
-load_path_model = os.path.normpath('../cnn_predicted_cry')
+load_path_model = os.path.normpath('../getalert/cnn_predicted_cry')
 # File Upload param
 FileList = namedtuple('FileList', ['path', 'num_files'])
 FileLists = [FileList(load_path_model, 12),
-             FileList(os.path.normpath('../cnn_predicted_1_cry'), 36)]
+             FileList(os.path.normpath('../getalert/cnn_predicted_1_cry'), 36)]
 
 
 def pytest_addoption(parser):
