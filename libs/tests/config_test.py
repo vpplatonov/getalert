@@ -3,6 +3,7 @@ import pytest
 from pathlib import Path
 from collections import namedtuple
 from .conftest import idparametrize
+from libs.predict.feature_engineer import SOUND_DURATION
 
 from libs.predict.feature_engineer import conf_load
 
@@ -81,7 +82,7 @@ class TestSuite():
         assert Conf(**case_conf_load)
         assert isinstance(case_conf_load, dict)
         assert case_conf_load['sampling_rate'] == 16000
-        assert case_conf_load['duration'] == 3    \
+        assert case_conf_load['duration'] == SOUND_DURATION
 
     @idparametrize('config_default', Models, fixture=True)
     def test_conf_load_param(self, config_default):
