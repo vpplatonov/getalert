@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 
@@ -10,7 +9,6 @@ import scipy
 import math
 from pydub import AudioSegment
 
-
 tqdm.pandas()
 
 PATH_SUFFIX_LOAD = '../'
@@ -18,12 +16,12 @@ PATH_SUFFIX_LOAD = '../'
 # PATH_SUFFIX_SAVE = '../ESC-50-master/'
 PATH_SUFFIX_SAVE = '../'
 SAMPLE_RATE = 16000
-SOUND_DURATION = 3
+SOUND_DURATION = 2
 NUM_MFCC = 30
 FRAME = int(SAMPLE_RATE / 1000 * 10)  # 10 ms
 NUM_PCA = 65
 MODEL_TYPE = 'XGBoost'  # 'SVC'
-FOLDER = 'XGBoost3'
+FOLDER = 'XGBoost2'
 # FOLDER = 'XGBoost1'
 
 
