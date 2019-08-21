@@ -24,3 +24,29 @@ cd c:\Users\User\source\repos\DetectionSubsystem\Engines.ModelsServing
 ```
 =============  32 passed, 2 xfailed, 1 xpassed in 11.00 seconds ===================
 ```
+
+#### Start notebook
+(base) C:\Users\User\workspace\getalert\libs>conda activate tensorflow
+(tensorflow) c:\Users\User\workspace >jupyter notebook
+
+
+#### OpenVINO
+(OpenVINO) C:\Users\User\workspace\OpenVINO\object_detection>python -V
+Python 3.6.9 :: Anaconda, Inc.
+
+```
+    cd C:\Program Files (x86)\IntelSWTools\openvino\deployment_tools\demo\
+    demo_squeezenet_download_convert_run.bat
+    demo_security_barrier_camera.bat
+```
+
+check version
+```
+> python
+>>> import sys
+>>> sys.path.append("C:\Program Files (x86)\IntelSWTools\openvino\python\python3.6")
+>>> import cv2
+>>> cv2.__version__
+'4.1.1-openvino'
+>>>
+```
